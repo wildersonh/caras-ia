@@ -34,11 +34,57 @@ class FaceAnalyzer:
         )
         
         self.tesselation = FaceLandmarksConnections.FACE_LANDMARKS_TESSELATION
+        
+        # Inicializar y precomputar máscara AR de Spider-Man
+        self.spiderman_mask = None
+        self.spiderman_src_pts = []
+        self.spiderman_triangles = []
+        self._init_spiderman_mask(os.path.join("filtros", "spiderman.png"))
+
+    def _init_spiderman_mask(self, mask_path="filtros/spiderman.png"):
+        """Carga y precomputa la triangulación Delaunay para la máscara de Spider-Man"""
+        if not os.path.exists(mask_path):
+            return
+        mask = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
+        if mask is None or mask.ndim < 3 or mask.shape[2] != 4:
+            return
+        self.spiderman_mask = mask
+        mh, mw = mask.shape[:2]
+        
+        # 31 puntos canónicos de la máscara Spider-Man (500x500)
+        self.spiderman_src_pts = [
+            (255, 45), (195, 65), (315, 65), (255, 110), (180, 115), (330, 115),
+            (142, 160), (368, 160), (160, 195), (185, 200), (220, 205), (180, 155),
+            (190, 245), (290, 205), (325, 200), (350, 195), (330, 155), (320, 245),
+            (255, 200), (255, 260), (255, 305), (225, 305), (285, 305), (165, 310),
+            (345, 310), (210, 345), (255, 350), (300, 345), (185, 410), (325, 410),
+            (255, 430)
+        ]
+        
+        subdiv = cv2.Subdiv2D((0, 0, mw, mh))
+        for pt in self.spiderman_src_pts:
+            subdiv.insert((float(pt[0]), float(pt[1])))
+        raw_triangles = subdiv.getTriangleList()
+
+        def find_index(pt, pts, tol=2.5):
+            for i, p in enumerate(pts):
+                if abs(p[0] - pt[0]) < tol and abs(p[1] - pt[1]) < tol:
+                    return i
+            return -1
+
+        self.spiderman_triangles = []
+        for t in raw_triangles:
+            i1 = find_index((t[0], t[1]), self.spiderman_src_pts)
+            i2 = find_index((t[2], t[3]), self.spiderman_src_pts)
+            i3 = find_index((t[4], t[5]), self.spiderman_src_pts)
+            if i1 >= 0 and i2 >= 0 and i3 >= 0:
+                self.spiderman_triangles.append((i1, i2, i3))
 
     def analyze_image(self, img_bgr, filter_mode="HUD"):
         """
         Analiza la imagen y aplica el filtro visual seleccionado:
         - "NONE": Sin ningún filtro (Foto original limpia al 100%)
+        - "SPIDERMAN": Máscara 3D AR de Spider-Man adaptable a la malla facial
         - "MEXICAN_CINEMA": Cine Mexicano / Árido (tono cálido sepia-ámbar desértico)
         - "DUOTONE_POP": Duotono Pop (#8A2BE2 sombras x #FF62CB luces)
         - "DARK_MOODY": Dark & Moody (luma -50%, sombras densas, melancólico)
@@ -70,6 +116,8 @@ class FaceAnalyzer:
         if not detection_result.face_landmarks:
             if filter_mode == "NONE":
                 return annotated_img, []
+            elif filter_mode == "SPIDERMAN":
+                return self._apply_spiderman_effect(img_bgr, None, w, h), []
             elif filter_mode == "MEXICAN_CINEMA":
                 return self._apply_mexican_cinema_effect(img_bgr), []
             elif filter_mode == "DUOTONE_POP":
@@ -153,6 +201,8 @@ class FaceAnalyzer:
         if filter_mode == "NONE":
             # Foto original limpia sin añadidos
             annotated_img = img_bgr.copy()
+        elif filter_mode == "SPIDERMAN":
+            annotated_img = self._apply_spiderman_effect(img_bgr, main_lms, w, h)
         elif filter_mode == "MEXICAN_CINEMA":
             annotated_img = self._apply_mexican_cinema_effect(img_bgr)
         elif filter_mode == "DUOTONE_POP":
@@ -204,6 +254,126 @@ class FaceAnalyzer:
                 )
 
         return annotated_img, faces_results
+
+    # =========================================================================
+    # FILTRO MÁSCARA 3D AR SPIDER-MAN (ADAPTABLE A LA MALLA FACIAL)
+    # =========================================================================
+    def _apply_spiderman_effect(self, img_bgr, lms, w, h):
+        """
+        Adapta la máscara de Spider-Man (filtros/spiderman.png) a la geometría facial
+        utilizando triangulación Delaunay y deformación afín por piezas según los 478 landmarks.
+        """
+        if self.spiderman_mask is None or lms is None:
+            output = img_bgr.copy()
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = max(0.35, min(w, h) / 1600.0)
+            if lms is None:
+                cv2.putText(output, "SPIDER-MAN AR MASK // BUSCANDO OBJETIVO FACIAL...", (20, h - 20), font, scale, (50, 50, 240), 1, cv2.LINE_AA)
+            else:
+                cv2.putText(output, "SPIDER-MAN AR MASK // ERROR: NO SE ENCONTRO FILTROS/SPIDERMAN.PNG", (20, h - 20), font, scale, (50, 50, 240), 1, cv2.LINE_AA)
+            return output
+
+        mh, mw = self.spiderman_mask.shape[:2]
+        face_w = abs(lms[454].x - lms[234].x) * w
+        face_h = abs(lms[152].y - lms[10].y) * h
+
+        top_skull_y = lms[10].y * h - face_h * 0.22
+        top_skull_x = lms[10].x * w
+
+        def p(idx):
+            return (lms[idx].x * w, lms[idx].y * h)
+
+        # 31 puntos destino adaptados al rostro de la persona
+        dst_pts = [
+            (top_skull_x, top_skull_y),
+            (top_skull_x - face_w * 0.28, top_skull_y + face_h * 0.05),
+            (top_skull_x + face_w * 0.28, top_skull_y + face_h * 0.05),
+            p(10),
+            p(109),
+            p(338),
+            p(234),
+            p(454),
+            p(33),
+            ((p(33)[0] + p(133)[0]) / 2, (p(159)[1] + p(145)[1]) / 2),
+            p(133),
+            p(105),
+            p(123),
+            p(362),
+            ((p(362)[0] + p(263)[0]) / 2, (p(386)[1] + p(374)[1]) / 2),
+            p(263),
+            p(334),
+            p(352),
+            p(168),
+            p(1),
+            ((p(13)[0] + p(14)[0]) / 2, (p(13)[1] + p(14)[1]) / 2),
+            p(61),
+            p(291),
+            p(172),
+            p(397),
+            p(148),
+            p(152),
+            p(377),
+            (p(172)[0] + face_w * 0.04, p(152)[1] + face_h * 0.18),
+            (p(397)[0] - face_w * 0.04, p(152)[1] + face_h * 0.18),
+            (p(152)[0], p(152)[1] + face_h * 0.22),
+        ]
+
+        warped_mask = np.zeros((h, w, 4), dtype=np.uint8)
+
+        for i1, i2, i3 in self.spiderman_triangles:
+            tri_s = [self.spiderman_src_pts[i1], self.spiderman_src_pts[i2], self.spiderman_src_pts[i3]]
+            tri_d = [dst_pts[i1], dst_pts[i2], dst_pts[i3]]
+
+            r_s = cv2.boundingRect(np.float32([tri_s]))
+            r_d = cv2.boundingRect(np.float32([tri_d]))
+
+            sx, sy, sw, sh = r_s
+            dx, dy, dw, dh = r_d
+
+            if sw <= 0 or sh <= 0 or dw <= 0 or dh <= 0:
+                continue
+            if dx >= w or dy >= h or dx + dw <= 0 or dy + dh <= 0:
+                continue
+
+            tri_s_crop = [((pt[0] - sx), (pt[1] - sy)) for pt in tri_s]
+            tri_d_crop = [((pt[0] - dx), (pt[1] - dy)) for pt in tri_d]
+
+            crop_s = self.spiderman_mask[max(0, sy):min(mh, sy + sh), max(0, sx):min(mw, sx + sw)]
+            if crop_s.shape[0] != sh or crop_s.shape[1] != sw:
+                continue
+
+            warp_mat = cv2.getAffineTransform(np.float32(tri_s_crop), np.float32(tri_d_crop))
+            warped_tri = cv2.warpAffine(crop_s, warp_mat, (dw, dh), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
+
+            tri_mask = np.zeros((dh, dw), dtype=np.uint8)
+            cv2.fillConvexPoly(tri_mask, np.int32(tri_d_crop), 255)
+            warped_tri[:, :, 3] = cv2.bitwise_and(warped_tri[:, :, 3], tri_mask)
+
+            x1_dst = max(0, dx)
+            y1_dst = max(0, dy)
+            x2_dst = min(w, dx + dw)
+            y2_dst = min(h, dy + dh)
+
+            x1_tri = x1_dst - dx
+            y1_tri = y1_dst - dy
+            x2_tri = x1_tri + (x2_dst - x1_dst)
+            y2_tri = y1_tri + (y2_dst - y1_dst)
+
+            sub_warped = warped_tri[y1_tri:y2_tri, x1_tri:x2_tri]
+            sub_alpha = sub_warped[:, :, 3]
+
+            curr_alpha = warped_mask[y1_dst:y2_dst, x1_dst:x2_dst, 3]
+            replace_mask = sub_alpha > curr_alpha
+            warped_mask[y1_dst:y2_dst, x1_dst:x2_dst][replace_mask] = sub_warped[replace_mask]
+
+        alpha = (warped_mask[:, :, 3].astype(np.float32) / 255.0)[:, :, np.newaxis]
+        rgb_mask = warped_mask[:, :, :3].astype(np.float32)
+        output = (img_bgr.astype(np.float32) * (1.0 - alpha) + rgb_mask * alpha).astype(np.uint8)
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(output, "SPIDER-MAN AR MESH // DYNAMIC FACIAL TRACKING", (15, h - 15), font, scale, (50, 50, 240), 1, cv2.LINE_AA)
+        return output
 
     # =========================================================================
     # 1. FILTRO CINE MEXICANO / ÁRIDO (WARM DESERT GRADE)

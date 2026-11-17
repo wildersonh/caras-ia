@@ -238,6 +238,7 @@ class AppReconocimientoFacial:
         
         self.filter_options = [
             ("🚫 [QUITAR FILTRO] Foto Original Limpia", "NONE"),
+            ("🕷️ Máscara Spider-Man (Malla AR Facial)", "SPIDERMAN"),
             ("🏜️ Cine Mexicano / Árido (Warm Desert Grade)", "MEXICAN_CINEMA"),
             ("🟣 Duotono Pop (#8A2BE2 x #FF62CB)", "DUOTONE_POP"),
             ("🌑 Dark & Moody (Cinematic Low-Key)", "DARK_MOODY"),
@@ -263,8 +264,8 @@ class AppReconocimientoFacial:
             values=[opt[0] for opt in self.filter_options], 
             state="readonly", width=38
         )
-        # Iniciar con HUD (índice 18)
-        self.cmb_filters.current(18)
+        # Iniciar con HUD (índice 19)
+        self.cmb_filters.current(19)
         self.cmb_filters.pack(side="left", padx=4)
         self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
         
@@ -297,6 +298,7 @@ class AppReconocimientoFacial:
         quick_filters_bar2.pack(fill="x", padx=4, pady=(1, 1))
         
         buttons_spec2 = [
+            ("🕷️ SPIDERMAN", "SPIDERMAN", "#7F1D1D", "#FCA5A5"),
             ("🎯 SPLASH", "COLOR_SPLASH", "#450A0A", "#F87171"),
             ("👾 8-BIT", "PIXEL_ART", "#064E3B", "#34D399"),
             ("📼 VHS", "VHS", "#312E81", "#A5B4FC"),
