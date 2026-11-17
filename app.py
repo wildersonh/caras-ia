@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 
-# Importar el motor de análisis facial con suite completa de 7 filtros
+# Importar el motor de análisis facial con suite completa de filtros (Mewing, RGB, Quitar Filtro, etc.)
 from face_engine import FaceAnalyzer
 
 def natural_sort_key(s):
@@ -18,9 +18,9 @@ def natural_sort_key(s):
 class AppReconocimientoFacial:
     def __init__(self, root):
         self.root = root
-        self.root.title("BIO-TACTICAL RECONNAISSANCE SYSTEM // HUD v2.6")
-        self.root.geometry("1260x880")
-        self.root.minsize(1140, 780)
+        self.root.title("BIO-TACTICAL RECONNAISSANCE SYSTEM // HUD v2.7")
+        self.root.geometry("1280x900")
+        self.root.minsize(1160, 800)
         
         # Archivo para guardar las evaluaciones del usuario
         self.csv_path = "evaluaciones_usuario.csv"
@@ -41,7 +41,7 @@ class AppReconocimientoFacial:
         self.tk_img_ref = None
         
         # Modo de filtro óptico activo:
-        # "HUD", "SNIPER", "NIGHT_VISION", "THERMAL", "TERMINATOR", "FACE_MESH", "CCTV"
+        # "NONE", "MEWING", "RGB", "SNIPER", "NIGHT_VISION", "THERMAL", "TERMINATOR", "FACE_MESH", "CCTV", "HUD"
         self.current_filter_mode = "HUD"
         
         # Escaneo de imágenes del dataset del usuario
@@ -91,7 +91,8 @@ class AppReconocimientoFacial:
         self.c_text_dim = "#86EFAC"     # Verde claro secundario
         self.c_text_muted = "#64748B"   # Gris técnico
         self.c_amber = "#F59E0B"        # Naranja de advertencia
-        self.c_crimson = "#EF4444"      # Rojo mira de rifle
+        self.c_crimson = "#EF4444"      # Rojo
+        self.c_pink = "#EC4899"         # Rosa Mewing
         
         self.root.configure(bg=self.c_bg_root)
         
@@ -120,7 +121,7 @@ class AppReconocimientoFacial:
         
         lbl_top_brand = tk.Label(
             header_frame, 
-            text="[ SYSTEM STATUS: ONLINE // MULTI-OPTIC BIO-RECONNAISSANCE v2.6 ]", 
+            text="[ SYSTEM STATUS: ONLINE // ADVANCED OPTICS & FACIAL WARPING v2.7 ]", 
             bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 11, "bold")
         )
         lbl_top_brand.pack(side="left", padx=5)
@@ -128,7 +129,7 @@ class AppReconocimientoFacial:
         now_time = datetime.datetime.now().strftime("%H:%M:%S")
         self.lbl_hud_time = tk.Label(
             header_frame, 
-            text=f"SYS TIME: {now_time} | MULTI-FILTER SUITE: 7 MODES | READY", 
+            text=f"SYS TIME: {now_time} | FILTERS: ACTIVE | BIOMETRICS: READY", 
             bg=self.c_bg_card, fg=self.c_text_dim, font=("Consolas", 10)
         )
         self.lbl_hud_time.pack(side="right", padx=5)
@@ -222,51 +223,66 @@ class AppReconocimientoFacial:
         )
         btn_rand.pack(side="left", padx=3)
 
-        # C) APARTADO DE FILTROS ÓPTICOS MULTI-MODO (Suite Completa)
+        # C) APARTADO DE FILTROS (Mewing, RGB, Quitar Filtro, etc.)
         filter_section = tk.Frame(left_card, bg="#101722", bd=1, relief="solid", highlightthickness=1)
         filter_section.configure(highlightbackground=self.c_border_neon)
         filter_section.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=4, ipadx=4)
         
+        # Fila 1: Título y Lista Desplegable + Botón Destacado para Quitar Filtro
         top_filter_bar = tk.Frame(filter_section, bg="#101722")
         top_filter_bar.pack(fill="x", padx=4, pady=(1, 3))
         
         tk.Label(
-            top_filter_bar, text="🎯 APARTADO DE FILTROS:", 
+            top_filter_bar, text="🎯 FILTRO:", 
             bg="#101722", fg=self.c_neon_green, font=("Consolas", 9, "bold")
         ).pack(side="left", padx=(4, 6))
         
-        # Mapeo de nombres para el selector
         self.filter_options = [
-            ("HUD Estándar (Cyberpunk Verde)", "HUD"),
+            ("🚫 [QUITAR FILTRO] Foto Original Limpia", "NONE"),
+            ("🗿 Filtro Mewing (Mandíbula & Pómulos)", "MEWING"),
+            ("🌈 Filtro RGB (Desfase Cromático Glitch)", "RGB"),
             ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
             ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
             ("🔥 Termografía FLIR (Predator Heatmap)", "THERMAL"),
             ("🤖 Terminator T-800 (Cyber Red HUD)", "TERMINATOR"),
             ("🕸️ Malla Holográfica 3D (Wireframe)", "FACE_MESH"),
-            ("📹 Cámara CCTV 90s (Security Feed)", "CCTV")
+            ("📹 Cámara CCTV 90s (Security Feed)", "CCTV"),
+            ("⚡ HUD Táctico (Cyberpunk Verde)", "HUD")
         ]
         
         self.cmb_filters = ttk.Combobox(
             top_filter_bar, 
             values=[opt[0] for opt in self.filter_options], 
-            state="readonly", width=36
+            state="readonly", width=34
         )
-        self.cmb_filters.current(0)
+        # Iniciar con HUD
+        self.cmb_filters.current(9)
         self.cmb_filters.pack(side="left", padx=4)
         self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
         
-        # Botonera de acceso directo rápido a los filtros
+        # Botón rápido para QUITAR FILTRO con 1 solo clic
+        btn_clear_filter = tk.Button(
+            top_filter_bar, text="[ 🚫 QUITAR FILTRO ]", bg="#371717", fg="#FCA5A5",
+            activebackground="#EF4444", activeforeground="#FFFFFF",
+            font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=6, pady=1, cursor="hand2",
+            command=lambda: self.set_filter_mode("NONE")
+        )
+        btn_clear_filter.pack(side="left", padx=(6, 2))
+        
+        # Fila 2: Botonera directa con los filtros solicitados
         quick_filters_bar = tk.Frame(filter_section, bg="#101722")
         quick_filters_bar.pack(fill="x", padx=4, pady=(2, 1))
         
         buttons_spec = [
-            ("HUD", "HUD", "#1E293B", "#94A3B8"),
+            ("🚫 ORIGINAL", "NONE", "#27272A", "#E4E4E7"),
+            ("🗿 MEWING", "MEWING", "#3B112C", "#F472B6"),
+            ("🌈 RGB GLITCH", "RGB", "#1A2542", "#67E8F9"),
             ("🎯 RIFLE", "SNIPER", "#450A0A", "#F87171"),
             ("🟢 NVG", "NIGHT_VISION", "#0F2E1B", "#4ADE80"),
             ("🔥 TÉRMICO", "THERMAL", "#3B1804", "#FB923C"),
             ("🤖 T-800", "TERMINATOR", "#3A0D0D", "#FCA5A5"),
             ("🕸️ 3D MESH", "FACE_MESH", "#082F49", "#38BDF8"),
-            ("📹 CCTV", "CCTV", "#1E293B", "#E2E8F0")
+            ("⚡ HUD", "HUD", "#1E293B", "#94A3B8")
         ]
         
         self.filter_buttons = {}
@@ -443,7 +459,7 @@ class AppReconocimientoFacial:
         self._update_stats_display()
 
     # =========================================================================
-    # CONTROL DE FILTROS ÓPTICOS
+    # CONTROL DE FILTROS ÓPTICOS Y DEFORMACIONES
     # =========================================================================
     def _on_filter_combobox_selected(self, event=None):
         idx = self.cmb_filters.current()
