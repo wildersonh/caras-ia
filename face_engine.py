@@ -39,6 +39,16 @@ class FaceAnalyzer:
         """
         Analiza la imagen y aplica el filtro visual seleccionado:
         - "NONE": Sin ningún filtro (Foto original limpia al 100%)
+        - "MEXICAN_CINEMA": Cine Mexicano / Árido (tono cálido sepia-ámbar desértico)
+        - "DUOTONE_POP": Duotono Pop (#8A2BE2 sombras x #FF62CB luces)
+        - "DARK_MOODY": Dark & Moody (luma -50%, sombras densas, melancólico)
+        - "HIGH_CONTRAST_BW": Monocromo de Alto Contraste (analógico en B&W)
+        - "CYBERPUNK_NEON": Cyberpunk / Neón (cianes y magentas con resplandor)
+        - "GOLDEN_HOUR": Golden Hour (gradiente dorado cálido de atardecer)
+        - "SKETCH": Boceto a Lápiz (Fine Graphite Pencil Sketch)
+        - "COLOR_SPLASH": Aislamiento de Color (rojos aislados, resto B&W)
+        - "PIXEL_ART": Píxel Art 8-Bit (retro arcade cuantizado)
+        - "VHS": Cinta VHS Retro (aberración, scanlines y tracking analógico)
         - "RGB": Desfase cromático RGB Glitch / Split anaglifo 3D
         - "SNIPER": Mira de Rifle de Francotirador Roja (mil-dot reticle)
         - "NIGHT_VISION": Visión Nocturna Militar NVG (Green Phosphor)
@@ -60,6 +70,26 @@ class FaceAnalyzer:
         if not detection_result.face_landmarks:
             if filter_mode == "NONE":
                 return annotated_img, []
+            elif filter_mode == "MEXICAN_CINEMA":
+                return self._apply_mexican_cinema_effect(img_bgr), []
+            elif filter_mode == "DUOTONE_POP":
+                return self._apply_duotone_pop_effect(img_bgr), []
+            elif filter_mode == "DARK_MOODY":
+                return self._apply_dark_moody_effect(img_bgr), []
+            elif filter_mode == "HIGH_CONTRAST_BW":
+                return self._apply_high_contrast_bw_effect(img_bgr), []
+            elif filter_mode == "CYBERPUNK_NEON":
+                return self._apply_cyberpunk_neon_effect(img_bgr), []
+            elif filter_mode == "GOLDEN_HOUR":
+                return self._apply_golden_hour_effect(img_bgr), []
+            elif filter_mode == "SKETCH":
+                return self._apply_sketch_effect(img_bgr), []
+            elif filter_mode == "COLOR_SPLASH":
+                return self._apply_color_splash_effect(img_bgr), []
+            elif filter_mode == "PIXEL_ART":
+                return self._apply_pixel_art_effect(img_bgr), []
+            elif filter_mode == "VHS":
+                return self._apply_vhs_effect(img_bgr), []
             elif filter_mode == "RGB":
                 return self._apply_rgb_split_effect(img_bgr), []
             elif filter_mode == "SNIPER":
@@ -123,6 +153,26 @@ class FaceAnalyzer:
         if filter_mode == "NONE":
             # Foto original limpia sin añadidos
             annotated_img = img_bgr.copy()
+        elif filter_mode == "MEXICAN_CINEMA":
+            annotated_img = self._apply_mexican_cinema_effect(img_bgr)
+        elif filter_mode == "DUOTONE_POP":
+            annotated_img = self._apply_duotone_pop_effect(img_bgr)
+        elif filter_mode == "DARK_MOODY":
+            annotated_img = self._apply_dark_moody_effect(img_bgr)
+        elif filter_mode == "HIGH_CONTRAST_BW":
+            annotated_img = self._apply_high_contrast_bw_effect(img_bgr)
+        elif filter_mode == "CYBERPUNK_NEON":
+            annotated_img = self._apply_cyberpunk_neon_effect(img_bgr)
+        elif filter_mode == "GOLDEN_HOUR":
+            annotated_img = self._apply_golden_hour_effect(img_bgr)
+        elif filter_mode == "SKETCH":
+            annotated_img = self._apply_sketch_effect(img_bgr)
+        elif filter_mode == "COLOR_SPLASH":
+            annotated_img = self._apply_color_splash_effect(img_bgr)
+        elif filter_mode == "PIXEL_ART":
+            annotated_img = self._apply_pixel_art_effect(img_bgr)
+        elif filter_mode == "VHS":
+            annotated_img = self._apply_vhs_effect(img_bgr)
         elif filter_mode == "RGB":
             # Filtro RGB Chromatic Glitch Split
             annotated_img = self._apply_rgb_split_effect(img_bgr)
@@ -154,6 +204,216 @@ class FaceAnalyzer:
                 )
 
         return annotated_img, faces_results
+
+    # =========================================================================
+    # 1. FILTRO CINE MEXICANO / ÁRIDO (WARM DESERT GRADE)
+    # =========================================================================
+    def _apply_mexican_cinema_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        kernel = np.array([
+            [0.272, 0.534, 0.131],
+            [0.349, 0.686, 0.168],
+            [0.393, 0.769, 0.189]
+        ])
+        sepia = cv2.transform(img_bgr, kernel)
+        sepia = np.clip(sepia, 0, 255).astype(np.uint8)
+        blended = cv2.addWeighted(sepia, 0.40, img_bgr, 0.60, 0)
+        hsv = cv2.cvtColor(blended, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.20, 0, 255)
+        hsv[:, :, 0] = np.clip(hsv[:, :, 0] * 0.94 + 3, 0, 179)
+        res = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        res = cv2.convertScaleAbs(res, alpha=1.10, beta=4)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "CINE ARIDO // WARM DESERT GRADE (SEPIA +40% / SAT +120%)", (15, h - 15), font, scale, (40, 190, 240), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # 2. FILTRO DUOTONO POP (#8A2BE2 SOMBRAS x #FF62CB LUCES)
+    # =========================================================================
+    def _apply_duotone_pop_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        c_shadow = np.array([226, 43, 138], dtype=np.float32)
+        c_high = np.array([203, 98, 255], dtype=np.float32)
+        
+        t = gray[:, :, np.newaxis]
+        duo = (1.0 - t) * c_shadow + t * c_high
+        output = np.clip(duo, 0, 255).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(output, "DUOTONE POP // #8A2BE2 DEEP PURPLE x #FF62CB VIBRANT ACCENT", (15, h - 15), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # 3. FILTRO DARK & MOODY (BAJO BRILLO & SOMBRAS DENSAS)
+    # =========================================================================
+    def _apply_dark_moody_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        darkened = cv2.convertScaleAbs(img_bgr, alpha=0.55, beta=-12)
+        hsv = cv2.cvtColor(darkened, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 0.82, 0, 255)
+        res = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        
+        X = cv2.getGaussianKernel(w, w * 0.52)
+        Y = cv2.getGaussianKernel(h, h * 0.52)
+        kernel = Y * X.T
+        mask = kernel / kernel.max()
+        res = (res.astype(np.float32) * (0.35 + 0.65 * mask[:, :, np.newaxis])).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "DARK & MOODY // CINEMATIC LOW-KEY (LUMA -50% / CRUSHED SHADOWS)", (15, h - 15), font, scale, (160, 180, 200), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # 4. FILTRO MONOCROMO DE ALTO CONTRASTE (ANALOG B&W)
+    # =========================================================================
+    def _apply_high_contrast_bw_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        lut = np.zeros(256, dtype=np.uint8)
+        for i in range(256):
+            v = i / 255.0
+            v_s = v * v * (3 - 2 * v)
+            lut[i] = np.clip(v_s * 280.0 - 15.0, 0, 255)
+        stretched = cv2.LUT(gray, lut)
+        res = cv2.cvtColor(stretched, cv2.COLOR_GRAY2BGR)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "HIGH CONTRAST B&W // ANALOG SILVER GELATIN (PURE BLACKS & HIGHLIGHTS)", (15, h - 15), font, scale, (230, 230, 230), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # 5. FILTRO CYBERPUNK / NEÓN (CIANES, MAGENTAS Y RESPLANDOR)
+    # =========================================================================
+    def _apply_cyberpunk_neon_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+        h_ch = hsv[:, :, 0]
+        h_new = np.where(h_ch < 90, 85.0 + (h_ch / 90.0) * 15.0, 145.0 + ((h_ch - 90.0) / 90.0) * 20.0)
+        hsv[:, :, 0] = h_new
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.50 + 25, 0, 255)
+        hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.15, 0, 255)
+        res = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        
+        blur = cv2.GaussianBlur(res, (21, 21), 0)
+        output = cv2.addWeighted(res, 0.72, blur, 0.38, 0)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(output, "CYBERPUNK NEON // CYAN-MAGENTA HUE ROTATE & HIGHLIGHT BLOOM", (15, h - 15), font, scale, (255, 240, 0), 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # 6. FILTRO GOLDEN HOUR (GRADIENTE CÁLIDO DE ATARDECER)
+    # =========================================================================
+    def _apply_golden_hour_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        y_coords = np.linspace(1.0, 0.15, h, dtype=np.float32)[:, np.newaxis]
+        grad_golden = np.zeros((h, w, 3), dtype=np.float32)
+        grad_golden[:, :, 0] = 25.0 * y_coords
+        grad_golden[:, :, 1] = 140.0 * y_coords
+        grad_golden[:, :, 2] = 255.0 * y_coords
+        
+        blended = cv2.addWeighted(img_bgr.astype(np.float32), 0.76, grad_golden, 0.36, 4)
+        output = np.clip(blended, 0, 255).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(output, "GOLDEN HOUR // SUNSET AMBER GRADIENT & WARM DIFFUSION", (15, h - 15), font, scale, (30, 210, 255), 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # 7. FILTRO BOCETO A LÁPIZ (FINE GRAPHITE SKETCH)
+    # =========================================================================
+    def _apply_sketch_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        inv = 255 - gray
+        blur_k = max(15, (int(min(w, h) * 0.04) // 2) * 2 + 1)
+        blur = cv2.GaussianBlur(inv, (blur_k, blur_k), 0)
+        sketch = cv2.divide(gray, 255 - blur, scale=256)
+        output = cv2.cvtColor(sketch, cv2.COLOR_GRAY2BGR)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(output, "PENCIL SKETCH // FINE GRAPHITE & GAUSSIAN DODGE", (15, h - 15), font, scale, (60, 60, 60), 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # 8. FILTRO AISLAMIENTO DE COLOR (COLOR SPLASH ROJO / CÁLIDO)
+    # =========================================================================
+    def _apply_color_splash_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+        lower1 = np.array([0, 55, 45])
+        upper1 = np.array([12, 255, 255])
+        lower2 = np.array([168, 55, 45])
+        upper2 = np.array([180, 255, 255])
+        mask1 = cv2.inRange(hsv, lower1, upper1)
+        mask2 = cv2.inRange(hsv, lower2, upper2)
+        mask = cv2.bitwise_or(mask1, mask2)
+        
+        mask_blur = cv2.GaussianBlur(mask, (7, 7), 0)
+        m = (mask_blur.astype(np.float32) / 255.0)[:, :, np.newaxis]
+        
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        
+        boosted = cv2.convertScaleAbs(img_bgr, alpha=1.25, beta=10)
+        splash = (boosted.astype(np.float32) * m + gray_bgr.astype(np.float32) * (1.0 - m))
+        output = np.clip(splash, 0, 255).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(output, "COLOR SPLASH // ISOLATED RED-WARM CHROMA (HSV MASK)", (15, h - 15), font, scale, (50, 50, 240), 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # 9. FILTRO PÍXEL ART / 8-BIT RETRO
+    # =========================================================================
+    def _apply_pixel_art_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        scale_w = max(48, min(120, w // 7))
+        scale_h = max(48, min(120, h // 7))
+        small = cv2.resize(img_bgr, (scale_w, scale_h), interpolation=cv2.INTER_LINEAR)
+        quantized = (small // 32) * 32 + 16
+        pixelated = cv2.resize(quantized, (w, h), interpolation=cv2.INTER_NEAREST)
+        pixelated[::4, :] = (pixelated[::4, :].astype(np.float32) * 0.85).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(pixelated, "PIXEL ART // 8-BIT RETRO ARCADE (NEAREST-NEIGHBOR QUANTIZED)", (15, h - 15), font, scale, (0, 255, 180), 1, cv2.LINE_AA)
+        return pixelated
+
+    # =========================================================================
+    # 10. FILTRO CINTA VHS RETRO (NTSC GLITCH & TRACKING)
+    # =========================================================================
+    def _apply_vhs_effect(self, img_bgr):
+        h, w, _ = img_bgr.shape
+        offset = max(4, int(w * 0.012))
+        b, g, r = cv2.split(img_bgr)
+        r_sh = np.roll(r, offset, axis=1)
+        b_sh = np.roll(b, -offset, axis=1)
+        vhs = cv2.merge([b_sh, g, r_sh])
+        vhs[::3, :] = (vhs[::3, :].astype(np.float32) * 0.78).astype(np.uint8)
+        noise = np.random.normal(0, 10, (h, w, 3)).astype(np.float32)
+        vhs = np.clip(vhs.astype(np.float32) + noise, 0, 255).astype(np.uint8)
+        track_y = int(h * 0.84)
+        track_h = max(10, int(h * 0.07))
+        if track_y + track_h < h:
+            vhs[track_y:track_y+track_h, :] = np.roll(vhs[track_y:track_y+track_h, :], 24, axis=1)
+            vhs[track_y:track_y+track_h, :] = cv2.GaussianBlur(vhs[track_y:track_y+track_h, :], (15, 1), 0)
+            
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.38, min(w, h) / 1500.0)
+        cv2.putText(vhs, "PLAY ▶  SP  0:24:18", (20, 35), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(vhs, "VHS NTSC // TRACKING ACTIVE", (15, h - 15), font, scale * 0.85, (220, 220, 220), 1, cv2.LINE_AA)
+        return vhs
 
     # =========================================================================
     # FILTRO RGB CHROMA GLITCH SPLIT

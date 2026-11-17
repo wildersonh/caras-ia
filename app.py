@@ -238,7 +238,17 @@ class AppReconocimientoFacial:
         
         self.filter_options = [
             ("🚫 [QUITAR FILTRO] Foto Original Limpia", "NONE"),
-            ("🌈 Filtro RGB (Desfase Cromático Glitch)", "RGB"),
+            ("🏜️ Cine Mexicano / Árido (Warm Desert Grade)", "MEXICAN_CINEMA"),
+            ("🟣 Duotono Pop (#8A2BE2 x #FF62CB)", "DUOTONE_POP"),
+            ("🌑 Dark & Moody (Cinematic Low-Key)", "DARK_MOODY"),
+            ("⚪ Monocromo Alto Contraste (Analog B&W)", "HIGH_CONTRAST_BW"),
+            ("🌆 Cyberpunk / Neón (Cyan & Magenta)", "CYBERPUNK_NEON"),
+            ("🌅 Golden Hour (Puesta de Sol Dorada)", "GOLDEN_HOUR"),
+            ("✏️ Boceto a Lápiz (Graphite Sketch)", "SKETCH"),
+            ("🎯 Aislamiento de Color (Color Splash)", "COLOR_SPLASH"),
+            ("👾 Píxel Art / 8-Bit (Retro Arcade)", "PIXEL_ART"),
+            ("📼 Cinta VHS / Glitch Retro (NTSC)", "VHS"),
+            ("🌈 Desfase RGB (3D Chroma Glitch)", "RGB"),
             ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
             ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
             ("🔥 Termografía FLIR (Predator Heatmap)", "THERMAL"),
@@ -251,10 +261,10 @@ class AppReconocimientoFacial:
         self.cmb_filters = ttk.Combobox(
             top_filter_bar, 
             values=[opt[0] for opt in self.filter_options], 
-            state="readonly", width=34
+            state="readonly", width=38
         )
-        # Iniciar con HUD
-        self.cmb_filters.current(8)
+        # Iniciar con HUD (índice 18)
+        self.cmb_filters.current(18)
         self.cmb_filters.pack(side="left", padx=4)
         self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
         
@@ -267,26 +277,51 @@ class AppReconocimientoFacial:
         )
         btn_clear_filter.pack(side="left", padx=(6, 2))
         
-        # Fila 2: Botonera directa con los filtros solicitados
-        quick_filters_bar = tk.Frame(filter_section, bg="#101722")
-        quick_filters_bar.pack(fill="x", padx=4, pady=(2, 1))
+        # Fila 2: Botonera directa - Grupo Color, Tono y Estéticos
+        quick_filters_bar1 = tk.Frame(filter_section, bg="#101722")
+        quick_filters_bar1.pack(fill="x", padx=4, pady=(2, 1))
         
-        buttons_spec = [
+        buttons_spec1 = [
             ("🚫 ORIGINAL", "NONE", "#27272A", "#E4E4E7"),
-            ("🌈 RGB GLITCH", "RGB", "#1A2542", "#67E8F9"),
+            ("🏜️ ÁRIDO", "MEXICAN_CINEMA", "#3D2714", "#FBBF24"),
+            ("🟣 DUOTONO", "DUOTONE_POP", "#2E1065", "#F472B6"),
+            ("🌑 MOODY", "DARK_MOODY", "#111827", "#9CA3AF"),
+            ("⚪ B&W ALTO", "HIGH_CONTRAST_BW", "#1F2937", "#F3F4F6"),
+            ("🌆 CYBER", "CYBERPUNK_NEON", "#1E1B4B", "#38BDF8"),
+            ("🌅 GOLDEN", "GOLDEN_HOUR", "#451A03", "#F59E0B"),
+            ("✏️ SKETCH", "SKETCH", "#374151", "#E5E7EB")
+        ]
+        
+        # Fila 3: Botonera directa - Grupo Computacionales y Tácticos
+        quick_filters_bar2 = tk.Frame(filter_section, bg="#101722")
+        quick_filters_bar2.pack(fill="x", padx=4, pady=(1, 1))
+        
+        buttons_spec2 = [
+            ("🎯 SPLASH", "COLOR_SPLASH", "#450A0A", "#F87171"),
+            ("👾 8-BIT", "PIXEL_ART", "#064E3B", "#34D399"),
+            ("📼 VHS", "VHS", "#312E81", "#A5B4FC"),
+            ("🌈 RGB", "RGB", "#1A2542", "#67E8F9"),
             ("🎯 RIFLE", "SNIPER", "#450A0A", "#F87171"),
             ("🟢 NVG", "NIGHT_VISION", "#0F2E1B", "#4ADE80"),
             ("🔥 TÉRMICO", "THERMAL", "#3B1804", "#FB923C"),
             ("🤖 T-800", "TERMINATOR", "#3A0D0D", "#FCA5A5"),
-            ("🕸️ 3D MESH", "FACE_MESH", "#082F49", "#38BDF8"),
             ("⚡ HUD", "HUD", "#1E293B", "#94A3B8")
         ]
         
         self.filter_buttons = {}
-        for label, mode_key, bg_col, fg_col in buttons_spec:
+        for label, mode_key, bg_col, fg_col in buttons_spec1:
             b = tk.Button(
-                quick_filters_bar, text=label, bg=bg_col, fg=fg_col,
-                font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=4, pady=1, cursor="hand2",
+                quick_filters_bar1, text=label, bg=bg_col, fg=fg_col,
+                font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=3, pady=1, cursor="hand2",
+                command=lambda m=mode_key: self.set_filter_mode(m)
+            )
+            b.pack(side="left", padx=2)
+            self.filter_buttons[mode_key] = b
+
+        for label, mode_key, bg_col, fg_col in buttons_spec2:
+            b = tk.Button(
+                quick_filters_bar2, text=label, bg=bg_col, fg=fg_col,
+                font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=3, pady=1, cursor="hand2",
                 command=lambda m=mode_key: self.set_filter_mode(m)
             )
             b.pack(side="left", padx=2)
