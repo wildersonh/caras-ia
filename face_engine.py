@@ -40,6 +40,17 @@ class FaceAnalyzer:
         Analiza la imagen y aplica el filtro visual seleccionado:
         - "NONE": Sin ningún filtro (Foto original limpia al 100%)
         - "FACE_MESH": Malla Holográfica 3D Wireframe (478 vértices)
+        - "BULGE_MIRROR": Espejo de Feria / Lupa (distorsión esférica)
+        - "SWIRL": Remolino / Vórtice de rotación angular
+        - "KALEIDOSCOPE": Caleidoscopio (patrón simétrico radial 8 sectores)
+        - "WATER_RIPPLE": Ondulación de Agua (ondas senoidales líquidas)
+        - "TILT_SHIFT": Efecto Miniatura Tilt-Shift con desenfoque progresivo
+        - "ANAMORPHIC_FLARE": Destello Anamórfico Azul de lentes de cine
+        - "LIGHT_LEAKS": Fugas de Luz Analógica cálidas
+        - "FISHEYE": Aberración Esférica Ojo de Pez con viñeteado
+        - "ASCII_ART": Arte ASCII matricial monoespaciado
+        - "HALFTONE_COMIC": Medio Tono / Cómic Pop Art Roy Lichtenstein
+        - "OIL_PAINTING": Pintura al Óleo con trazos y bordes definidos
         - "MEXICAN_CINEMA": Cine Mexicano / Árido (tono cálido sepia-ámbar desértico)
         - "DUOTONE_POP": Duotono Pop (#8A2BE2 sombras x #FF62CB luces)
         - "DARK_MOODY": Dark & Moody (luma -50%, sombras densas, melancólico)
@@ -55,7 +66,6 @@ class FaceAnalyzer:
         - "NIGHT_VISION": Visión Nocturna Militar NVG (Green Phosphor)
         - "THERMAL": Termografía FLIR / Predator Heatmap
         - "TERMINATOR": Visor Ciborg Terminator T-800
-        - "FACE_MESH": Malla Holográfica 3D Wireframe (478 vértices)
         - "CCTV": Cámara de Seguridad Vintage 90s con Timestamp
         - "HUD": HUD Cyberpunk Táctico estándar
         """
@@ -77,6 +87,28 @@ class FaceAnalyzer:
                 scale = max(0.40, min(w, h) / 1400.0)
                 cv2.putText(annotated_img, "[ 3D BIOMETRIC TOPOLOGY // SCANNING TARGET... ]", (25, h // 2), font, scale, (0, 255, 230), 2, cv2.LINE_AA)
                 return annotated_img, []
+            elif filter_mode == "BULGE_MIRROR":
+                return self._apply_bulge_mirror_effect(img_bgr, center=(w // 2, h // 2)), []
+            elif filter_mode == "SWIRL":
+                return self._apply_swirl_effect(img_bgr, center=(w // 2, h // 2)), []
+            elif filter_mode == "KALEIDOSCOPE":
+                return self._apply_kaleidoscope_effect(img_bgr), []
+            elif filter_mode == "WATER_RIPPLE":
+                return self._apply_water_ripple_effect(img_bgr, center=(w // 2, h // 2)), []
+            elif filter_mode == "TILT_SHIFT":
+                return self._apply_tilt_shift_effect(img_bgr), []
+            elif filter_mode == "ANAMORPHIC_FLARE":
+                return self._apply_anamorphic_flare_effect(img_bgr), []
+            elif filter_mode == "LIGHT_LEAKS":
+                return self._apply_light_leaks_effect(img_bgr), []
+            elif filter_mode == "FISHEYE":
+                return self._apply_fisheye_effect(img_bgr), []
+            elif filter_mode == "ASCII_ART":
+                return self._apply_ascii_art_effect(img_bgr), []
+            elif filter_mode == "HALFTONE_COMIC":
+                return self._apply_halftone_comic_effect(img_bgr), []
+            elif filter_mode == "OIL_PAINTING":
+                return self._apply_oil_painting_effect(img_bgr), []
             elif filter_mode == "MEXICAN_CINEMA":
                 return self._apply_mexican_cinema_effect(img_bgr), []
             elif filter_mode == "DUOTONE_POP":
@@ -162,6 +194,28 @@ class FaceAnalyzer:
             annotated_img = img_bgr.copy()
         elif filter_mode == "FACE_MESH":
             annotated_img = self._apply_face_mesh_effect(img_bgr, main_lms, main_face, w, h)
+        elif filter_mode == "BULGE_MIRROR":
+            annotated_img = self._apply_bulge_mirror_effect(img_bgr, center=target_center)
+        elif filter_mode == "SWIRL":
+            annotated_img = self._apply_swirl_effect(img_bgr, center=target_center)
+        elif filter_mode == "KALEIDOSCOPE":
+            annotated_img = self._apply_kaleidoscope_effect(img_bgr)
+        elif filter_mode == "WATER_RIPPLE":
+            annotated_img = self._apply_water_ripple_effect(img_bgr, center=target_center)
+        elif filter_mode == "TILT_SHIFT":
+            annotated_img = self._apply_tilt_shift_effect(img_bgr)
+        elif filter_mode == "ANAMORPHIC_FLARE":
+            annotated_img = self._apply_anamorphic_flare_effect(img_bgr)
+        elif filter_mode == "LIGHT_LEAKS":
+            annotated_img = self._apply_light_leaks_effect(img_bgr)
+        elif filter_mode == "FISHEYE":
+            annotated_img = self._apply_fisheye_effect(img_bgr)
+        elif filter_mode == "ASCII_ART":
+            annotated_img = self._apply_ascii_art_effect(img_bgr)
+        elif filter_mode == "HALFTONE_COMIC":
+            annotated_img = self._apply_halftone_comic_effect(img_bgr)
+        elif filter_mode == "OIL_PAINTING":
+            annotated_img = self._apply_oil_painting_effect(img_bgr)
         elif filter_mode == "MEXICAN_CINEMA":
             annotated_img = self._apply_mexican_cinema_effect(img_bgr)
         elif filter_mode == "DUOTONE_POP":
@@ -211,6 +265,315 @@ class FaceAnalyzer:
                 )
 
         return annotated_img, faces_results
+
+    # =========================================================================
+    # A. FILTROS GEOMÉTRICOS Y DE DEFORMACIÓN ESPACIAL
+    # =========================================================================
+    def _apply_bulge_mirror_effect(self, img_bgr, center=None):
+        """Espejo de Feria (Pinch & Bulge): Distorsión esférica / lupa centrada en el rostro"""
+        h, w = img_bgr.shape[:2]
+        cx, cy = center if center is not None else (w // 2, h // 2)
+        radius = min(w, h) * 0.45
+        
+        y_indices, x_indices = np.indices((h, w), dtype=np.float32)
+        dx = x_indices - cx
+        dy = y_indices - cy
+        r = np.sqrt(dx * dx + dy * dy)
+        
+        mask = r < radius
+        r_norm = r[mask] / radius
+        distortion = np.sin(r_norm * np.pi * 0.5) ** 0.55
+        denom = np.maximum(r_norm, 1e-6)
+        factor = np.where(r_norm > 0, distortion / denom, 1.0)
+        
+        map_x = x_indices.copy()
+        map_y = y_indices.copy()
+        map_x[mask] = cx + dx[mask] * factor
+        map_y[mask] = cy + dy[mask] * factor
+        
+        res = cv2.remap(img_bgr, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "BULGE MIRROR // DISTORSION ESFERICA DE LUPA", (15, h - 15), font, scale, (255, 230, 80), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_swirl_effect(self, img_bgr, center=None):
+        """Remolino (Swirl Vortex): Vórtice de rotación angular centrada en el rostro"""
+        h, w = img_bgr.shape[:2]
+        cx, cy = center if center is not None else (w // 2, h // 2)
+        radius = min(w, h) * 0.50
+        strength = 4.5  # Rotación máxima en el núcleo
+        
+        y_indices, x_indices = np.indices((h, w), dtype=np.float32)
+        dx = x_indices - cx
+        dy = y_indices - cy
+        r = np.sqrt(dx * dx + dy * dy)
+        theta = np.arctan2(dy, dx)
+        
+        mask = r < radius
+        angle = theta[mask] + strength * ((radius - r[mask]) / radius) ** 2
+        
+        map_x = x_indices.copy()
+        map_y = y_indices.copy()
+        map_x[mask] = cx + r[mask] * np.cos(angle)
+        map_y[mask] = cy + r[mask] * np.sin(angle)
+        
+        res = cv2.remap(img_bgr, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "SWIRL VORTEX // REMOLINO DE ROTACION RADIAL", (15, h - 15), font, scale, (120, 240, 255), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_kaleidoscope_effect(self, img_bgr):
+        """Caleidoscopio: Simetría radial pop de 8 sectores angulares"""
+        h, w = img_bgr.shape[:2]
+        cx, cy = w / 2.0, h / 2.0
+        
+        y_indices, x_indices = np.indices((h, w), dtype=np.float32)
+        dx = x_indices - cx
+        dy = y_indices - cy
+        r = np.sqrt(dx * dx + dy * dy)
+        theta = np.arctan2(dy, dx)
+        
+        num_sectors = 8
+        sector_angle = 2.0 * np.pi / num_sectors
+        theta_folded = np.abs(np.mod(theta + np.pi, sector_angle) - sector_angle * 0.5)
+        
+        map_x = (cx + r * np.cos(theta_folded)).astype(np.float32)
+        map_y = (cy + r * np.sin(theta_folded)).astype(np.float32)
+        
+        res = cv2.remap(img_bgr, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "KALEIDOSCOPE // SIMETRIA RADIAL POP (8 SECTORES)", (15, h - 15), font, scale, (240, 180, 255), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_water_ripple_effect(self, img_bgr, center=None):
+        """Ondulación de Agua (Water Ripple): Ondas senoidales líquidas concéntricas"""
+        h, w = img_bgr.shape[:2]
+        cx, cy = center if center is not None else (w // 2, h // 2)
+        
+        y_indices, x_indices = np.indices((h, w), dtype=np.float32)
+        dx = x_indices - cx
+        dy = y_indices - cy
+        r = np.sqrt(dx * dx + dy * dy)
+        
+        wavelength = 35.0
+        amplitude = 14.0
+        decay = np.exp(-r / (max(w, h) * 0.40))
+        wave = np.sin(2.0 * np.pi * r / wavelength) * amplitude * decay
+        
+        r_safe = np.maximum(r, 1e-6)
+        map_x = (x_indices + wave * (dx / r_safe)).astype(np.float32)
+        map_y = (y_indices + wave * (dy / r_safe)).astype(np.float32)
+        
+        res = cv2.remap(img_bgr, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "WATER RIPPLE // ONDULACION LIQUIDA CON REFLEJO", (15, h - 15), font, scale, (100, 220, 255), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # B. FILTROS CINEMATOGRÁFICOS Y ÓPTICOS
+    # =========================================================================
+    def _apply_tilt_shift_effect(self, img_bgr):
+        """Tilt-Shift: Enfoque selectivo horizontal con saturación miniatura"""
+        h, w = img_bgr.shape[:2]
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.45, 0, 255)
+        saturated = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        saturated = cv2.convertScaleAbs(saturated, alpha=1.12, beta=3)
+        
+        blur_ksize = max(15, (min(w, h) // 30) | 1)
+        blurred = cv2.GaussianBlur(saturated, (blur_ksize, blur_ksize), 0)
+        
+        y_norm = np.linspace(-1.0, 1.0, h, dtype=np.float32)[:, np.newaxis]
+        blur_weight = np.clip((np.abs(y_norm) - 0.20) / 0.40, 0.0, 1.0)
+        blur_weight = (blur_weight * blur_weight * (3 - 2 * blur_weight))[:, :, np.newaxis]
+        
+        res = ((1.0 - blur_weight) * saturated.astype(np.float32) + blur_weight * blurred.astype(np.float32)).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "TILT-SHIFT // EFECTO MAQUETA MINIATURA (PROFUNDIDAD SELECTIVA)", (15, h - 15), font, scale, (255, 255, 180), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_anamorphic_flare_effect(self, img_bgr):
+        """Destello Anamórfico: Resplandor horizontal azul/cian característico de lentes anamórficos"""
+        h, w = img_bgr.shape[:2]
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 215, 255, cv2.THRESH_TOZERO)
+        
+        streak_w = max(31, (w // 8) | 1)
+        streak_h = max(3, (h // 120) | 1)
+        streak = cv2.GaussianBlur(thresh, (streak_w, streak_h), 0)
+        
+        streak_bgr = np.zeros((h, w, 3), dtype=np.float32)
+        s_norm = streak.astype(np.float32) / 255.0
+        streak_bgr[:, :, 0] = s_norm * 255.0
+        streak_bgr[:, :, 1] = s_norm * 170.0
+        streak_bgr[:, :, 2] = s_norm * 35.0
+        
+        base = img_bgr.astype(np.float32)
+        res = 255.0 - ((255.0 - base) * (255.0 - streak_bgr * 0.85) / 255.0)
+        res = np.clip(res, 0, 255).astype(np.uint8)
+        
+        cv2.line(res, (0, 3), (w, 3), (255, 180, 50), 1)
+        cv2.line(res, (0, h - 4), (w, h - 4), (255, 180, 50), 1)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "ANAMORPHIC FLARE // LENTES DE CINE 2.39:1 (CELESTE ANAMORFICO)", (15, h - 15), font, scale, (255, 210, 80), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_light_leaks_effect(self, img_bgr):
+        """Fugas de Luz (Light Leaks): Manchas cálidas de película analógica 35mm"""
+        h, w = img_bgr.shape[:2]
+        leak = np.zeros((h, w, 3), dtype=np.float32)
+        
+        y_idx, x_idx = np.indices((h, w), dtype=np.float32)
+        r_tl = np.sqrt(x_idx**2 + y_idx**2)
+        leak_tl = np.clip(1.0 - r_tl / (max(w, h) * 0.65), 0.0, 1.0) ** 1.8
+        
+        r_br = np.sqrt((w - 1 - x_idx)**2 + (h - 1 - y_idx)**2)
+        leak_br = np.clip(1.0 - r_br / (max(w, h) * 0.55), 0.0, 1.0) ** 2.0
+        
+        leak[:, :, 0] += leak_tl * 30.0 + leak_br * 40.0
+        leak[:, :, 1] += leak_tl * 120.0 + leak_br * 190.0
+        leak[:, :, 2] += leak_tl * 255.0 + leak_br * 255.0
+        
+        base = img_bgr.astype(np.float32)
+        res = 255.0 - ((255.0 - base) * (255.0 - np.clip(leak, 0, 255)) / 255.0)
+        res = np.clip(res, 0, 255).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "LIGHT LEAKS // FUGA DE LUZ ANALOGICA 35MM (WARM VINTAGE)", (15, h - 15), font, scale, (80, 180, 255), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_fisheye_effect(self, img_bgr):
+        """Ojo de Pez (Fisheye): Aberración esférica extrema y viñeteado circular"""
+        h, w = img_bgr.shape[:2]
+        cx, cy = w / 2.0, h / 2.0
+        
+        y_indices, x_indices = np.indices((h, w), dtype=np.float32)
+        dx = (x_indices - cx) / cx
+        dy = (y_indices - cy) / cy
+        r = np.sqrt(dx * dx + dy * dy)
+        
+        r_dist = r * (1.0 + 0.35 * r * r)
+        factor = np.where(r > 0, r_dist / np.maximum(r, 1e-6), 1.0)
+        
+        map_x = (cx + dx * factor * cx).astype(np.float32)
+        map_y = (cy + dy * factor * cy).astype(np.float32)
+        
+        distorted = cv2.remap(img_bgr, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
+        
+        r_corner = np.sqrt(((x_indices - cx) / (w * 0.55))**2 + ((y_indices - cy) / (h * 0.55))**2)
+        vignette = np.clip(1.0 - np.clip((r_corner - 0.75) / 0.35, 0.0, 1.0), 0.0, 1.0)
+        res = (distorted.astype(np.float32) * vignette[:, :, np.newaxis]).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "FISHEYE LENS // ABERRACION ESFERICA & GRAN ANGULAR", (15, h - 15), font, scale, (220, 220, 220), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # C. FILTROS ARTÍSTICOS Y COMPUTACIONALES AVANZADOS
+    # =========================================================================
+    def _apply_ascii_art_effect(self, img_bgr):
+        """Arte ASCII: Renderizado de matriz de texto monoespaciado según luminancia"""
+        h, w = img_bgr.shape[:2]
+        chars = " .:-=+*#%@"
+        num_chars = len(chars)
+        
+        block_size = max(7, min(w, h) // 70)
+        small_w = w // block_size
+        small_h = h // block_size
+        
+        small_bgr = cv2.resize(img_bgr, (small_w, small_h), interpolation=cv2.INTER_AREA)
+        small_gray = cv2.cvtColor(small_bgr, cv2.COLOR_BGR2GRAY)
+        
+        res = np.zeros((h, w, 3), dtype=np.uint8)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = max(0.24, block_size / 24.0)
+        
+        for r in range(small_h):
+            y_pos = r * block_size + block_size - 2
+            for c in range(small_w):
+                val = small_gray[r, c]
+                char_idx = int(val / 256.0 * num_chars)
+                char = chars[min(char_idx, num_chars - 1)]
+                color = tuple(int(x) for x in small_bgr[r, c])
+                x_pos = c * block_size + 1
+                cv2.putText(res, char, (x_pos, y_pos), font, font_scale, color, 1, cv2.LINE_AA)
+                
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "ASCII ART // MATRIZ MONOESPACIADA & LUMINANCIA", (15, h - 15), font, scale, (0, 255, 120), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_halftone_comic_effect(self, img_bgr):
+        """Medio Tono (Halftone / Cómic Pop Art): Retícula de puntos Roy Lichtenstein"""
+        h, w = img_bgr.shape[:2]
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.55, 0, 255)
+        boosted = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        quant = (boosted // 64) * 64 + 32
+        
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        step = max(7, min(w, h) // 80)
+        max_radius = step * 0.70
+        canvas = quant.copy()
+        
+        for y in range(step // 2, h, step):
+            for x in range(step // 2, w, step):
+                val = float(gray[y, x])
+                darkness = 1.0 - (val / 255.0)
+                rad = int(darkness * max_radius)
+                if rad > 1:
+                    cv2.circle(canvas, (x, y), rad, (20, 20, 30), -1, cv2.LINE_AA)
+                    
+        edges = cv2.Canny(gray, 60, 160)
+        edges_dilated = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)), iterations=1)
+        canvas[edges_dilated > 0] = (15, 15, 15)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(canvas, "HALFTONE COMIC // RETICULA POP ART & TINTA NEGRA", (15, h - 15), font, scale, (30, 30, 240), 1, cv2.LINE_AA)
+        return canvas
+
+    def _apply_oil_painting_effect(self, img_bgr):
+        """Pintura al Óleo: Suavizado bilateral múltiple y realce de trazos pastosos"""
+        h, w = img_bgr.shape[:2]
+        scale_factor = 0.65 if max(w, h) > 700 else 1.0
+        small = cv2.resize(img_bgr, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA) if scale_factor < 1.0 else img_bgr
+        
+        smooth = small
+        for _ in range(3):
+            smooth = cv2.bilateralFilter(smooth, d=7, sigmaColor=65, sigmaSpace=65)
+            
+        gray = cv2.cvtColor(smooth, cv2.COLOR_BGR2GRAY)
+        edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 3)
+        edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+        painterly = cv2.bitwise_and(smooth, edges_bgr)
+        
+        if scale_factor < 1.0:
+            res = cv2.resize(painterly, (w, h), interpolation=cv2.INTER_LINEAR)
+        else:
+            res = painterly
+            
+        hsv = cv2.cvtColor(res, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.25, 0, 255)
+        res = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "OIL PAINTING // PINTURA AL OLEO & TRAZOS PASTOSOS", (15, h - 15), font, scale, (240, 240, 240), 1, cv2.LINE_AA)
+        return res
 
     # =========================================================================
     # 1. FILTRO CINE MEXICANO / ÁRIDO (WARM DESERT GRADE)

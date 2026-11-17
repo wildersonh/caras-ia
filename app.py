@@ -240,6 +240,17 @@ class AppReconocimientoFacial:
             ("🕸️ Malla Holográfica 3D (Wireframe 478 Vértices)", "FACE_MESH"),
             ("⚡ HUD Táctico (Cyberpunk Verde Estándar)", "HUD"),
             ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
+            ("🔮 Espejo de Feria / Lupa (Pinch & Bulge)", "BULGE_MIRROR"),
+            ("🌀 Remolino / Vórtice (Swirl Vortex)", "SWIRL"),
+            ("💠 Caleidoscopio Radial (8 Sectores Pop)", "KALEIDOSCOPE"),
+            ("💧 Ondulación de Agua (Water Ripple)", "WATER_RIPPLE"),
+            ("🏙️ Tilt-Shift / Efecto Miniatura (Profundidad)", "TILT_SHIFT"),
+            ("🔷 Destello Anamórfico Azul (Lentes de Cine)", "ANAMORPHIC_FLARE"),
+            ("☀️ Fugas de Luz Cálidas (Light Leaks 35mm)", "LIGHT_LEAKS"),
+            ("🐟 Aberración Ojo de Pez (Fisheye Gran Angular)", "FISHEYE"),
+            ("🔤 Arte ASCII Matricial (Monoespaciado)", "ASCII_ART"),
+            ("📰 Medio Tono / Cómic Pop Art (Halftone Roy Lichtenstein)", "HALFTONE_COMIC"),
+            ("🎨 Pintura al Óleo (Trazos Pastosos & Bordes)", "OIL_PAINTING"),
             ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
             ("🔥 Termografía FLIR (Predator Heatmap)", "THERMAL"),
             ("🤖 Terminator T-800 (Cyber Red HUD)", "TERMINATOR"),
@@ -267,6 +278,15 @@ class AppReconocimientoFacial:
         self.cmb_filters.pack(side="left", fill="x", expand=True, padx=4)
         self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
         
+        # Botón para DESCARGAR IMAGEN con el filtro aplicado
+        btn_download = tk.Button(
+            top_filter_bar, text="[ 📥 DESCARGAR IMAGEN ]", bg="#132B25", fg="#4EEDA6",
+            activebackground="#4EEDA6", activeforeground="#000000",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=2, cursor="hand2",
+            command=self.download_filtered_image
+        )
+        btn_download.pack(side="right", padx=(4, 2))
+
         # Botón rápido para QUITAR FILTRO con 1 solo clic
         btn_clear_filter = tk.Button(
             top_filter_bar, text="[ 🚫 QUITAR FILTRO ]", bg="#371717", fg="#FCA5A5",
@@ -274,7 +294,7 @@ class AppReconocimientoFacial:
             font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=2, cursor="hand2",
             command=lambda: self.set_filter_mode("NONE")
         )
-        btn_clear_filter.pack(side="right", padx=(8, 2))
+        btn_clear_filter.pack(side="right", padx=(6, 2))
 
         # D) Barra superior del visor táctico
         top_visor_bar = tk.Frame(left_card, bg=self.c_bg_card)
@@ -536,6 +556,38 @@ class AppReconocimientoFacial:
             self.process_image_path(temp_path)
         else:
             messagebox.showerror("Error", "Fallo al capturar fotograma del sensor.")
+
+    def download_filtered_image(self):
+        """Permite guardar/descargar la imagen actualmente visible con el filtro aplicado"""
+        if self.current_annotated_bgr is None:
+            messagebox.showwarning("Advertencia", "No hay ninguna imagen activa o procesada para descargar.")
+            return
+            
+        base_name = "captura"
+        if self.current_file_path:
+            base_name = os.path.splitext(os.path.basename(self.current_file_path))[0]
+        default_filename = f"{base_name}_filtro_{self.current_filter_mode.lower()}.png"
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Guardar Imagen con Filtro",
+            initialfile=default_filename,
+            defaultextension=".png",
+            filetypes=[
+                ("PNG Image (*.png)", "*.png"),
+                ("JPEG Image (*.jpg;*.jpeg)", "*.jpg;*.jpeg"),
+                ("Todos los archivos (*.*)", "*.*")
+            ]
+        )
+        
+        if file_path:
+            try:
+                success = cv2.imwrite(file_path, self.current_annotated_bgr)
+                if success:
+                    messagebox.showinfo("Descarga Exitosa", f"Imagen guardada con éxito en:\n{file_path}")
+                else:
+                    messagebox.showerror("Error", "No se pudo escribir el archivo de imagen.")
+            except Exception as e:
+                messagebox.showerror("Error al Guardar", f"Ocurrió un error al guardar la imagen:\n{str(e)}")
 
     def process_image_path(self, path):
         if not os.path.exists(path):
