@@ -1,0 +1,6 @@
+Fecha_Hora,Archivo,Rostro_ID,Pred_Genero,Pred_Confianza,Pred_Color_Ojos,Pred_Color_Piel,Val_Genero,Val_Color_Ojos,Val_Color_Piel,Es_Correcto,Comentarios
+2026-11-16 19:40:00,obama_hombre.jpg,1,Hombre,100.0,Marrón Oscuro,Claro / Beige,Hombre,Marrón Oscuro,Claro / Beige,Sí,Aprobado por el usuario
+2026-11-16 19:41:00,lena_mujer.jpg,1,Mujer,99.6,Marrón / Castaño,Intermedio / Trigueño,Mujer,Marrón / Castaño,Intermedio / Trigueño,Sí,Aprobado por el usuario
+2026-11-16 19:41:21,95d24fcee3970fd45dc1a70944ac8767.jpg,1,Mujer,99.7,Marrón / Castaño,Muy Claro / Pálido,Mujer,Marrón / Castaño,Muy Claro / Pálido,Sí,Aprobado por el usuario (100% de acuerdo)
+2026-11-16 19:54:50,IMG_0496.JPG,1,Hombre,98.9,Marrón / Castaño,Moreno / Bronceado,Hombre,Marrón / Castaño,Moreno / Bronceado,Sí,Aprobado por el usuario (100% de acuerdo)
+2026-11-16 19:54:52,IMG_0496.JPG,1,Hombre,98.9,Marrón / Castaño,Moreno / Bronceado,Hombre,Marrón / Castaño,Moreno / Bronceado,Sí,Confirmado
