@@ -40,6 +40,17 @@ class FaceAnalyzer:
         Analiza la imagen y aplica el filtro visual seleccionado:
         - "NONE": Sin ningún filtro (Foto original limpia al 100%)
         - "FACE_MESH": Malla Holográfica 3D Wireframe (478 vértices)
+        - "EMBOSS": Relieve Esculpido 3D (convolución asimétrica direccional)
+        - "GLOWING_EDGES": Bordes de Neón luminiscentes (Canny + resplandor cian)
+        - "UNSHARP_MASK": Nitidez Extrema (máscara de desenfoque y microcontraste)
+        - "GAMEBOY_DITHER": Dithering Retro Game Boy clásico (paleta DMG 4 tonos)
+        - "LED_MATRIX": Pantalla LED de estadio (matriz de diodos luminosos)
+        - "POSTERIZE_HOPE": Posterización Estricta pop art (póster HOPE propaganda)
+        - "MOTION_BLUR": Desenfoque de Movimiento 1D (alta velocidad horizontal)
+        - "ZOOM_BURST": Desenfoque Radial / hipervelocidad cinética sobre el rostro
+        - "GHOSTING": Estelas Espectrales y rastro de movimiento multi-frame
+        - "GREEN_SCREEN": Segmentación de Fondo verde croma de estudio (#00FF00)
+        - "PORTRAIT_ISOLATE": Aislamiento de Retrato (sujeto a color, fondo desenfocado B&W)
         - "BULGE_MIRROR": Espejo de Feria / Lupa (distorsión esférica)
         - "SWIRL": Remolino / Vórtice de rotación angular
         - "KALEIDOSCOPE": Caleidoscopio (patrón simétrico radial 8 sectores)
@@ -87,6 +98,28 @@ class FaceAnalyzer:
                 scale = max(0.40, min(w, h) / 1400.0)
                 cv2.putText(annotated_img, "[ 3D BIOMETRIC TOPOLOGY // SCANNING TARGET... ]", (25, h // 2), font, scale, (0, 255, 230), 2, cv2.LINE_AA)
                 return annotated_img, []
+            elif filter_mode == "EMBOSS":
+                return self._apply_emboss_effect(img_bgr), []
+            elif filter_mode == "GLOWING_EDGES":
+                return self._apply_glowing_edges_effect(img_bgr), []
+            elif filter_mode == "UNSHARP_MASK":
+                return self._apply_unsharp_mask_effect(img_bgr), []
+            elif filter_mode == "GAMEBOY_DITHER":
+                return self._apply_gameboy_dither_effect(img_bgr), []
+            elif filter_mode == "LED_MATRIX":
+                return self._apply_led_matrix_effect(img_bgr), []
+            elif filter_mode == "POSTERIZE_HOPE":
+                return self._apply_posterize_hope_effect(img_bgr), []
+            elif filter_mode == "MOTION_BLUR":
+                return self._apply_motion_blur_effect(img_bgr), []
+            elif filter_mode == "ZOOM_BURST":
+                return self._apply_zoom_burst_effect(img_bgr, center=(w // 2, h // 2)), []
+            elif filter_mode == "GHOSTING":
+                return self._apply_ghosting_effect(img_bgr), []
+            elif filter_mode == "GREEN_SCREEN":
+                return self._apply_green_screen_effect(img_bgr, landmarks=None), []
+            elif filter_mode == "PORTRAIT_ISOLATE":
+                return self._apply_portrait_isolate_effect(img_bgr, landmarks=None), []
             elif filter_mode == "BULGE_MIRROR":
                 return self._apply_bulge_mirror_effect(img_bgr, center=(w // 2, h // 2)), []
             elif filter_mode == "SWIRL":
@@ -194,6 +227,28 @@ class FaceAnalyzer:
             annotated_img = img_bgr.copy()
         elif filter_mode == "FACE_MESH":
             annotated_img = self._apply_face_mesh_effect(img_bgr, main_lms, main_face, w, h)
+        elif filter_mode == "EMBOSS":
+            annotated_img = self._apply_emboss_effect(img_bgr)
+        elif filter_mode == "GLOWING_EDGES":
+            annotated_img = self._apply_glowing_edges_effect(img_bgr)
+        elif filter_mode == "UNSHARP_MASK":
+            annotated_img = self._apply_unsharp_mask_effect(img_bgr)
+        elif filter_mode == "GAMEBOY_DITHER":
+            annotated_img = self._apply_gameboy_dither_effect(img_bgr)
+        elif filter_mode == "LED_MATRIX":
+            annotated_img = self._apply_led_matrix_effect(img_bgr)
+        elif filter_mode == "POSTERIZE_HOPE":
+            annotated_img = self._apply_posterize_hope_effect(img_bgr)
+        elif filter_mode == "MOTION_BLUR":
+            annotated_img = self._apply_motion_blur_effect(img_bgr)
+        elif filter_mode == "ZOOM_BURST":
+            annotated_img = self._apply_zoom_burst_effect(img_bgr, center=target_center)
+        elif filter_mode == "GHOSTING":
+            annotated_img = self._apply_ghosting_effect(img_bgr)
+        elif filter_mode == "GREEN_SCREEN":
+            annotated_img = self._apply_green_screen_effect(img_bgr, landmarks=main_lms)
+        elif filter_mode == "PORTRAIT_ISOLATE":
+            annotated_img = self._apply_portrait_isolate_effect(img_bgr, landmarks=main_lms)
         elif filter_mode == "BULGE_MIRROR":
             annotated_img = self._apply_bulge_mirror_effect(img_bgr, center=target_center)
         elif filter_mode == "SWIRL":
@@ -573,6 +628,277 @@ class FaceAnalyzer:
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale = max(0.34, min(w, h) / 1600.0)
         cv2.putText(res, "OIL PAINTING // PINTURA AL OLEO & TRAZOS PASTOSOS", (15, h - 15), font, scale, (240, 240, 240), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # D. EFECTOS MATRICIALES (CONVOLUCIONES ESPACIALES)
+    # =========================================================================
+    def _apply_emboss_effect(self, img_bgr):
+        """Relieve (Emboss): Convolución asimétrica direccional simulando piedra o moneda tallada en 3D"""
+        h, w = img_bgr.shape[:2]
+        kernel = np.array([
+            [-2, -1,  0],
+            [-1,  1,  1],
+            [ 0,  1,  2]
+        ], dtype=np.float32)
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        embossed = cv2.filter2D(gray, -1, kernel) + 128
+        res = cv2.cvtColor(np.clip(embossed, 0, 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "EMBOSS // RELIEVE ASIMETRICO 3D (ESCULTURA MONOLITICA)", (15, h - 15), font, scale, (230, 230, 230), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_glowing_edges_effect(self, img_bgr):
+        """Bordes de Neón (Glowing Edges): Canny + dilatación + luminiscencia cian/magenta sobre negro"""
+        h, w = img_bgr.shape[:2]
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 140)
+        dilated = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+        glow = cv2.GaussianBlur(dilated, (15, 15), 0)
+        
+        res = np.zeros((h, w, 3), dtype=np.uint8)
+        res[:, :, 0] = np.clip(dilated.astype(np.float32) * 0.95 + glow.astype(np.float32) * 1.5, 0, 255).astype(np.uint8)
+        res[:, :, 1] = np.clip(dilated.astype(np.float32) * 0.85 + glow.astype(np.float32) * 1.2, 0, 255).astype(np.uint8)
+        res[:, :, 2] = np.clip(glow.astype(np.float32) * 0.5, 0, 255).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "GLOWING EDGES // BORDES DE NEON LUMINISCENTES", (15, h - 15), font, scale, (255, 255, 100), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_unsharp_mask_effect(self, img_bgr):
+        """Nitidez Extrema (Unsharp Mask): Realce agresivo de frecuencias altas y microcontraste"""
+        h, w = img_bgr.shape[:2]
+        gaussian = cv2.GaussianBlur(img_bgr, (9, 9), 10.0)
+        res = cv2.addWeighted(img_bgr, 1.85, gaussian, -0.85, 0)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "UNSHARP MASK // NITIDEZ EXTREMA & MICROCONTRASTE OPTICO", (15, h - 15), font, scale, (255, 230, 100), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # E. ESTILOS RETRO ALGORÍTMICOS
+    # =========================================================================
+    def _apply_gameboy_dither_effect(self, img_bgr):
+        """Dithering Game Boy Clásico: 4 tonos de verde original con matriz de difusión Bayer"""
+        h, w = img_bgr.shape[:2]
+        target_w = 160
+        target_h = max(1, int(h * (target_w / float(w))))
+        small = cv2.resize(img_bgr, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        
+        bayer4 = np.array([
+            [ 0,  8,  2, 10],
+            [12,  4, 14,  6],
+            [ 3, 11,  1,  9],
+            [15,  7, 13,  5]
+        ], dtype=np.float32) / 16.0 - 0.5
+        
+        tiled_bayer = np.tile(bayer4, (target_h // 4 + 1, target_w // 4 + 1))[:target_h, :target_w]
+        dithered = np.clip(gray + tiled_bayer * 0.35, 0.0, 1.0)
+        indices = np.clip((dithered * 3.999).astype(np.int32), 0, 3)
+        
+        gb_palette = np.array([
+            [15, 56, 15],     # Verde muy oscuro (#0f380f)
+            [48, 98, 48],     # Verde oliva oscuro (#306230)
+            [15, 172, 139],   # Verde lima medio (#8bac0f)
+            [15, 218, 155]    # Verde pistacho claro (#9bbc0f)
+        ], dtype=np.uint8)
+        
+        res_small = gb_palette[indices]
+        res = cv2.resize(res_small, (w, h), interpolation=cv2.INTER_NEAREST)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "GAME BOY DMG-01 // 4-SHADE RETRO DITHERING (160x144)", (15, h - 15), font, scale, (15, 218, 155), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_led_matrix_effect(self, img_bgr):
+        """Pantalla LED de Estadio: Malla de diodos circulares luminosos rodeados de bisel oscuro"""
+        h, w = img_bgr.shape[:2]
+        step = max(7, min(w, h) // 55)
+        radius = max(2, step // 2 - 1)
+        grid_w = w // step
+        grid_h = h // step
+        
+        small = cv2.resize(img_bgr, (grid_w, grid_h), interpolation=cv2.INTER_AREA)
+        res = np.zeros((h, w, 3), dtype=np.uint8)
+        
+        for r in range(grid_h):
+            cy = r * step + step // 2
+            for c in range(grid_w):
+                cx = c * step + step // 2
+                col = tuple(int(x) for x in small[r, c])
+                cv2.circle(res, (cx, cy), radius, col, -1, cv2.LINE_AA)
+                spec = tuple(min(255, int(x * 1.35 + 25)) for x in small[r, c])
+                if radius > 2:
+                    cv2.circle(res, (cx - 1, cy - 1), 1, spec, -1)
+                    
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "LED MATRIX DISPLAY // PANEL DE DIODOS DE ESTADIO", (15, h - 15), font, scale, (255, 200, 50), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_posterize_hope_effect(self, img_bgr):
+        """Posterización Estricta (Póster HOPE): Cuantización tonal a paleta icónica Shepard Fairey"""
+        h, w = img_bgr.shape[:2]
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        
+        hope_palette = np.array([
+            [73, 43, 0],       # Azul Marino (#002b49)
+            [33, 26, 215],     # Rojo Carmesí (#d71a21)
+            [176, 155, 112],   # Celeste Pastel (#709bb0)
+            [196, 235, 252]    # Crema Cálido (#fcebc4)
+        ], dtype=np.uint8)
+        
+        idx = np.clip(gray // 64, 0, 3)
+        res = hope_palette[idx]
+        
+        edges = cv2.Canny(gray, 60, 150)
+        edges = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)), iterations=1)
+        res[edges > 0] = [73, 43, 0]
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "POSTERIZE HOPE // PROPAGANDA POP ART 4-COLOR PALETTE", (15, h - 15), font, scale, (196, 235, 252), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # F. FILTROS ÓPTICOS Y TEMPORALES DE MOVIMIENTO
+    # =========================================================================
+    def _apply_motion_blur_effect(self, img_bgr):
+        """Desenfoque de Movimiento (Motion Blur): Kernel unidireccional horizontal de alta velocidad"""
+        h, w = img_bgr.shape[:2]
+        ksize = max(15, min(w, h) // 25)
+        if ksize % 2 == 0:
+            ksize += 1
+        kernel = np.zeros((ksize, ksize), dtype=np.float32)
+        kernel[int((ksize - 1) / 2), :] = 1.0 / float(ksize)
+        res = cv2.filter2D(img_bgr, -1, kernel)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "MOTION BLUR // DESENFOQUE HORIZONTAL DE ALTA VELOCIDAD", (15, h - 15), font, scale, (200, 240, 255), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_zoom_burst_effect(self, img_bgr, center=None):
+        """Desenfoque Radial (Zoom Burst): Aceleración cinética e hipervelocidad centrada en el rostro"""
+        h, w = img_bgr.shape[:2]
+        cx, cy = center if center is not None else (w // 2, h // 2)
+        
+        scales = np.linspace(1.0, 1.28, 7)
+        acc = np.zeros_like(img_bgr, dtype=np.float32)
+        for s in scales:
+            M = cv2.getRotationMatrix2D((cx, cy), 0, s)
+            acc += cv2.warpAffine(img_bgr, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+        res = (acc / len(scales)).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "ZOOM BURST // HIPERVELOCIDAD RADIAL KINETICA", (15, h - 15), font, scale, (255, 230, 80), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_ghosting_effect(self, img_bgr):
+        """Estelas Temporales (Ghosting / Frame Echo): Desfase secuencial y rastro espectral de movimiento"""
+        h, w = img_bgr.shape[:2]
+        shift = max(10, w // 35)
+        g1 = np.roll(img_bgr, shift, axis=1)
+        g2 = np.roll(img_bgr, shift * 2, axis=1)
+        g3 = np.roll(img_bgr, shift * 3, axis=1)
+        
+        res = (img_bgr.astype(np.float32) * 0.52 + 
+               g1.astype(np.float32) * 0.26 + 
+               g2.astype(np.float32) * 0.14 + 
+               g3.astype(np.float32) * 0.08).astype(np.uint8)
+               
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "GHOSTING ECHO // ESTELAS ESPECTRALES & RASTRO MULTI-FRAME", (15, h - 15), font, scale, (200, 150, 255), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # G. FILTROS DE SEGMENTACIÓN Y AISLAMIENTO DE SUJETO
+    # =========================================================================
+    def _create_subject_mask(self, img_bgr, landmarks=None, w=None, h=None):
+        """Genera una máscara suave del sujeto a partir de los puntos faciales o el centro de la imagen"""
+        if w is None or h is None:
+            h, w = img_bgr.shape[:2]
+            
+        mask = np.zeros((h, w), dtype=np.uint8)
+        
+        if landmarks:
+            pts = np.array([[int(p.x * w), int(p.y * h)] for p in landmarks], dtype=np.int32)
+            hull = cv2.convexHull(pts)
+            M = cv2.moments(hull)
+            cx = int(M['m10'] / (M['m00'] + 1e-6))
+            cy = int(M['m01'] / (M['m00'] + 1e-6))
+            x, y, bw, bh = cv2.boundingRect(hull)
+            
+            center_head = (cx, int(cy - bh * 0.05))
+            axes_head = (int(bw * 0.68), int(bh * 0.72))
+            cv2.ellipse(mask, center_head, axes_head, 0, 0, 360, 255, -1)
+            
+            torso_pts = np.array([
+                [max(0, cx - int(bw * 0.95)), h],
+                [min(w, cx + int(bw * 0.95)), h],
+                [min(w, cx + int(bw * 0.70)), min(h, cy + int(bh * 0.50))],
+                [max(0, cx - int(bw * 0.70)), min(h, cy + int(bh * 0.50))]
+            ], dtype=np.int32)
+            cv2.fillPoly(mask, [torso_pts], 255)
+            cv2.fillPoly(mask, [hull], 255)
+        else:
+            cv2.ellipse(mask, (w // 2, int(h * 0.45)), (int(w * 0.35), int(h * 0.45)), 0, 0, 360, 255, -1)
+            torso_pts = np.array([
+                [max(0, int(w * 0.15)), h],
+                [min(w, int(w * 0.85)), h],
+                [min(w, int(w * 0.70)), int(h * 0.65)],
+                [max(0, int(w * 0.30)), int(h * 0.65)]
+            ], dtype=np.int32)
+            cv2.fillPoly(mask, [torso_pts], 255)
+            
+        feather_ksize = max(21, (min(w, h) // 25) | 1)
+        feathered = cv2.GaussianBlur(mask, (feather_ksize, feather_ksize), 0).astype(np.float32) / 255.0
+        return feathered[:, :, np.newaxis]
+
+    def _apply_green_screen_effect(self, img_bgr, landmarks=None):
+        """Segmentación de Fondo (Green Screen): Fondo verde croma #00FF00 de estudio con sujeto intacto"""
+        h, w = img_bgr.shape[:2]
+        alpha = self._create_subject_mask(img_bgr, landmarks, w, h)
+        
+        green_bg = np.zeros_like(img_bgr)
+        green_bg[:] = (0, 235, 0)
+        
+        for y in range(0, h, 40):
+            cv2.line(green_bg, (0, y), (w, y), (0, 205, 0), 1)
+        for x in range(0, w, 40):
+            cv2.line(green_bg, (x, 0), (x, h), (0, 205, 0), 1)
+            
+        res = (img_bgr.astype(np.float32) * alpha + green_bg.astype(np.float32) * (1.0 - alpha)).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "GREEN SCREEN // CROMA DE ESTUDIO (#00FF00) & SUJETO AISLADO", (15, h - 15), font, scale, (0, 70, 0), 1, cv2.LINE_AA)
+        return res
+
+    def _apply_portrait_isolate_effect(self, img_bgr, landmarks=None):
+        """Aislamiento de Retrato: Sujeto nítido a todo color con fondo desenfocado en blanco y negro"""
+        h, w = img_bgr.shape[:2]
+        alpha = self._create_subject_mask(img_bgr, landmarks, w, h)
+        
+        blur_k = max(25, (min(w, h) // 20) | 1)
+        bg_blurred = cv2.GaussianBlur(img_bgr, (blur_k, blur_k), 0)
+        bg_gray = cv2.cvtColor(bg_blurred, cv2.COLOR_BGR2GRAY)
+        bg_bgr = cv2.cvtColor(bg_gray, cv2.COLOR_GRAY2BGR)
+        bg_bgr = cv2.convertScaleAbs(bg_bgr, alpha=0.85, beta=-10)
+        
+        res = (img_bgr.astype(np.float32) * alpha + bg_bgr.astype(np.float32) * (1.0 - alpha)).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "PORTRAIT BOKEH // SUJETO A COLOR & FONDO DESENFOCADO B&W", (15, h - 15), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
         return res
 
     # =========================================================================
