@@ -222,23 +222,29 @@ class AppReconocimientoFacial:
         )
         btn_rand.pack(side="left", padx=3)
 
-        # C) APARTADO DE FILTROS (RGB, Quitar Filtro, Mira de Rifle, etc.)
+        # C) APARTADO DE FILTROS (Menú Desplegable)
         filter_section = tk.Frame(left_card, bg="#101722", bd=1, relief="solid", highlightthickness=1)
         filter_section.configure(highlightbackground=self.c_border_neon)
         filter_section.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=4, ipadx=4)
         
-        # Fila 1: Título y Lista Desplegable + Botón Destacado para Quitar Filtro
         top_filter_bar = tk.Frame(filter_section, bg="#101722")
-        top_filter_bar.pack(fill="x", padx=4, pady=(1, 3))
+        top_filter_bar.pack(fill="x", padx=6, pady=2)
         
         tk.Label(
-            top_filter_bar, text="🎯 FILTRO:", 
-            bg="#101722", fg=self.c_neon_green, font=("Consolas", 9, "bold")
-        ).pack(side="left", padx=(4, 6))
+            top_filter_bar, text="🎯 SELECCIONAR FILTRO:", 
+            bg="#101722", fg=self.c_neon_green, font=("Consolas", 10, "bold")
+        ).pack(side="left", padx=(2, 8))
         
         self.filter_options = [
             ("🚫 [QUITAR FILTRO] Foto Original Limpia", "NONE"),
-            ("🕷️ Máscara Spider-Man (Malla AR Facial)", "SPIDERMAN"),
+            ("🕸️ Malla Holográfica 3D (Wireframe 478 Vértices)", "FACE_MESH"),
+            ("⚡ HUD Táctico (Cyberpunk Verde Estándar)", "HUD"),
+            ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
+            ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
+            ("🔥 Termografía FLIR (Predator Heatmap)", "THERMAL"),
+            ("🤖 Terminator T-800 (Cyber Red HUD)", "TERMINATOR"),
+            ("📹 Cámara CCTV 90s (Security Feed)", "CCTV"),
+            ("🌈 Desfase RGB (3D Chroma Glitch)", "RGB"),
             ("🏜️ Cine Mexicano / Árido (Warm Desert Grade)", "MEXICAN_CINEMA"),
             ("🟣 Duotono Pop (#8A2BE2 x #FF62CB)", "DUOTONE_POP"),
             ("🌑 Dark & Moody (Cinematic Low-Key)", "DARK_MOODY"),
@@ -248,86 +254,27 @@ class AppReconocimientoFacial:
             ("✏️ Boceto a Lápiz (Graphite Sketch)", "SKETCH"),
             ("🎯 Aislamiento de Color (Color Splash)", "COLOR_SPLASH"),
             ("👾 Píxel Art / 8-Bit (Retro Arcade)", "PIXEL_ART"),
-            ("📼 Cinta VHS / Glitch Retro (NTSC)", "VHS"),
-            ("🌈 Desfase RGB (3D Chroma Glitch)", "RGB"),
-            ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
-            ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
-            ("🔥 Termografía FLIR (Predator Heatmap)", "THERMAL"),
-            ("🤖 Terminator T-800 (Cyber Red HUD)", "TERMINATOR"),
-            ("🕸️ Malla Holográfica 3D (Wireframe)", "FACE_MESH"),
-            ("📹 Cámara CCTV 90s (Security Feed)", "CCTV"),
-            ("⚡ HUD Táctico (Cyberpunk Verde)", "HUD")
+            ("📼 Cinta VHS / Glitch Retro (NTSC)", "VHS")
         ]
         
         self.cmb_filters = ttk.Combobox(
             top_filter_bar, 
             values=[opt[0] for opt in self.filter_options], 
-            state="readonly", width=38
+            state="readonly", width=42, font=("Consolas", 10)
         )
-        # Iniciar con HUD (índice 19)
-        self.cmb_filters.current(19)
-        self.cmb_filters.pack(side="left", padx=4)
+        # Iniciar con HUD (índice 2)
+        self.cmb_filters.current(2)
+        self.cmb_filters.pack(side="left", fill="x", expand=True, padx=4)
         self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
         
         # Botón rápido para QUITAR FILTRO con 1 solo clic
         btn_clear_filter = tk.Button(
             top_filter_bar, text="[ 🚫 QUITAR FILTRO ]", bg="#371717", fg="#FCA5A5",
             activebackground="#EF4444", activeforeground="#FFFFFF",
-            font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=6, pady=1, cursor="hand2",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=2, cursor="hand2",
             command=lambda: self.set_filter_mode("NONE")
         )
-        btn_clear_filter.pack(side="left", padx=(6, 2))
-        
-        # Fila 2: Botonera directa - Grupo Color, Tono y Estéticos
-        quick_filters_bar1 = tk.Frame(filter_section, bg="#101722")
-        quick_filters_bar1.pack(fill="x", padx=4, pady=(2, 1))
-        
-        buttons_spec1 = [
-            ("🚫 ORIGINAL", "NONE", "#27272A", "#E4E4E7"),
-            ("🏜️ ÁRIDO", "MEXICAN_CINEMA", "#3D2714", "#FBBF24"),
-            ("🟣 DUOTONO", "DUOTONE_POP", "#2E1065", "#F472B6"),
-            ("🌑 MOODY", "DARK_MOODY", "#111827", "#9CA3AF"),
-            ("⚪ B&W ALTO", "HIGH_CONTRAST_BW", "#1F2937", "#F3F4F6"),
-            ("🌆 CYBER", "CYBERPUNK_NEON", "#1E1B4B", "#38BDF8"),
-            ("🌅 GOLDEN", "GOLDEN_HOUR", "#451A03", "#F59E0B"),
-            ("✏️ SKETCH", "SKETCH", "#374151", "#E5E7EB")
-        ]
-        
-        # Fila 3: Botonera directa - Grupo Computacionales y Tácticos
-        quick_filters_bar2 = tk.Frame(filter_section, bg="#101722")
-        quick_filters_bar2.pack(fill="x", padx=4, pady=(1, 1))
-        
-        buttons_spec2 = [
-            ("🕷️ SPIDERMAN", "SPIDERMAN", "#7F1D1D", "#FCA5A5"),
-            ("🎯 SPLASH", "COLOR_SPLASH", "#450A0A", "#F87171"),
-            ("👾 8-BIT", "PIXEL_ART", "#064E3B", "#34D399"),
-            ("📼 VHS", "VHS", "#312E81", "#A5B4FC"),
-            ("🌈 RGB", "RGB", "#1A2542", "#67E8F9"),
-            ("🎯 RIFLE", "SNIPER", "#450A0A", "#F87171"),
-            ("🟢 NVG", "NIGHT_VISION", "#0F2E1B", "#4ADE80"),
-            ("🔥 TÉRMICO", "THERMAL", "#3B1804", "#FB923C"),
-            ("🤖 T-800", "TERMINATOR", "#3A0D0D", "#FCA5A5"),
-            ("⚡ HUD", "HUD", "#1E293B", "#94A3B8")
-        ]
-        
-        self.filter_buttons = {}
-        for label, mode_key, bg_col, fg_col in buttons_spec1:
-            b = tk.Button(
-                quick_filters_bar1, text=label, bg=bg_col, fg=fg_col,
-                font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=3, pady=1, cursor="hand2",
-                command=lambda m=mode_key: self.set_filter_mode(m)
-            )
-            b.pack(side="left", padx=2)
-            self.filter_buttons[mode_key] = b
-
-        for label, mode_key, bg_col, fg_col in buttons_spec2:
-            b = tk.Button(
-                quick_filters_bar2, text=label, bg=bg_col, fg=fg_col,
-                font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=3, pady=1, cursor="hand2",
-                command=lambda m=mode_key: self.set_filter_mode(m)
-            )
-            b.pack(side="left", padx=2)
-            self.filter_buttons[mode_key] = b
+        btn_clear_filter.pack(side="right", padx=(8, 2))
 
         # D) Barra superior del visor táctico
         top_visor_bar = tk.Frame(left_card, bg=self.c_bg_card)
