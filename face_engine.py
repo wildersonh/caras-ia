@@ -51,6 +51,8 @@ class FaceAnalyzer:
         - "GHOSTING": Estelas Espectrales y rastro de movimiento multi-frame
         - "GREEN_SCREEN": Segmentación de Fondo verde croma de estudio (#00FF00)
         - "PORTRAIT_ISOLATE": Aislamiento de Retrato (sujeto a color, fondo desenfocado B&W)
+        - "PIXEL_SORTING": Pixel Sorting / Derretimiento Digital (glitch cascade)
+        - "MANGA_JAPANESE": Manga Japonés Clásico (plumilla G-Pen y trama screentone)
         - "BULGE_MIRROR": Espejo de Feria / Lupa (distorsión esférica)
         - "SWIRL": Remolino / Vórtice de rotación angular
         - "KALEIDOSCOPE": Caleidoscopio (patrón simétrico radial 8 sectores)
@@ -120,6 +122,10 @@ class FaceAnalyzer:
                 return self._apply_green_screen_effect(img_bgr, landmarks=None), []
             elif filter_mode == "PORTRAIT_ISOLATE":
                 return self._apply_portrait_isolate_effect(img_bgr, landmarks=None), []
+            elif filter_mode == "PIXEL_SORTING":
+                return self._apply_pixel_sorting_effect(img_bgr), []
+            elif filter_mode == "MANGA_JAPANESE":
+                return self._apply_japanese_manga_effect(img_bgr), []
             elif filter_mode == "BULGE_MIRROR":
                 return self._apply_bulge_mirror_effect(img_bgr, center=(w // 2, h // 2)), []
             elif filter_mode == "SWIRL":
@@ -249,6 +255,10 @@ class FaceAnalyzer:
             annotated_img = self._apply_green_screen_effect(img_bgr, landmarks=main_lms)
         elif filter_mode == "PORTRAIT_ISOLATE":
             annotated_img = self._apply_portrait_isolate_effect(img_bgr, landmarks=main_lms)
+        elif filter_mode == "PIXEL_SORTING":
+            annotated_img = self._apply_pixel_sorting_effect(img_bgr)
+        elif filter_mode == "MANGA_JAPANESE":
+            annotated_img = self._apply_japanese_manga_effect(img_bgr)
         elif filter_mode == "BULGE_MIRROR":
             annotated_img = self._apply_bulge_mirror_effect(img_bgr, center=target_center)
         elif filter_mode == "SWIRL":
@@ -899,6 +909,108 @@ class FaceAnalyzer:
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale = max(0.34, min(w, h) / 1600.0)
         cv2.putText(res, "PORTRAIT BOKEH // SUJETO A COLOR & FONDO DESENFOCADO B&W", (15, h - 15), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+        return res
+
+    # =========================================================================
+    # H. FILTROS AVANZADOS: GLITCH DIGITAL & MANGA JAPONÉS
+    # =========================================================================
+    def _apply_pixel_sorting_effect(self, img_bgr):
+        """
+        Pixel Sorting (Derretimiento Digital / Cascading Glitch):
+        Algoritmo:
+        1. Segmentación por luminiscencia: Identifica intervalos continuos de píxeles
+           cuyo brillo se encuentra dentro del rango de fusión [65, 220].
+        2. Ordenamiento de vecindad unidireccional: En cada columna seleccionada,
+           los píxeles se reordenan según su intensidad luminosa Y = 0.299R + 0.587G + 0.114B
+           creando un efecto de cascada líquida / derretimiento digital.
+        """
+        h, w = img_bgr.shape[:2]
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        
+        thresh_low = 65
+        thresh_high = 220
+        mask = (gray >= thresh_low) & (gray <= thresh_high)
+        
+        sorted_img = img_bgr.copy()
+        
+        for c in range(0, w, 2):
+            col_mask = mask[:, c]
+            diff = np.diff(np.concatenate(([False], col_mask, [False])).astype(np.int8))
+            starts = np.where(diff == 1)[0]
+            ends = np.where(diff == -1)[0]
+            for s, e in zip(starts, ends):
+                if e - s > 8:
+                    slice_lum = gray[s:e, c]
+                    sort_idx = np.argsort(slice_lum)
+                    sorted_img[s:e, c] = sorted_img[s:e, c][sort_idx]
+                    if c + 1 < w:
+                        sorted_img[s:e, c + 1] = sorted_img[s:e, c][sort_idx]
+                        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(sorted_img, "PIXEL SORTING // DERRETIMIENTO DIGITAL & GLITCH CASCADE", (15, h - 15), font, scale, (100, 255, 240), 1, cv2.LINE_AA)
+        return sorted_img
+
+    def _apply_japanese_manga_effect(self, img_bgr):
+        """
+        Filtro Manga Japonés Clásico (Authentic Screentone Lineart):
+        Matemática y pipeline estricto:
+        1. Escala de grises: Y = 0.114*B + 0.587*G + 0.299*R
+        2. Filtro bilateral para preservar aristas reduciendo ruido de textura (d=7, sigmaColor=50, sigmaSpace=50).
+        3. Umbralización adaptativa con media local C=4, block=9 para extraer el lineart de plumilla G-pen.
+        4. Morfología de erosión para consolidar el entintado tradicional con tinta china pura.
+        5. Aislamiento de sombras profundas (negro sólido < 55) y zonas de sombras medias [55, 165).
+        6. Trama de semitonos (screentones): matriz periódica modular (x % step, y % step)
+           con distancia euclidiana al centro del punto r(x,y) = sqrt(dx^2 + dy^2). El radio de cada punto
+           varía de manera proporcional a la densidad de la sombra I_norm = (165 - Y) / 110.
+        7. Blancos puros: Todos los píxeles con Y >= 165 se asignan estrictamente a 255 (papel blanco).
+        Resultado final: Rigurosamente binario y monocromático (solo negro 0 y blanco 255).
+        """
+        h, w = img_bgr.shape[:2]
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        
+        # 1 y 2. Suavizado bilateral preservando bordes duros
+        smooth = cv2.bilateralFilter(gray, d=7, sigmaColor=50, sigmaSpace=50)
+        
+        # 2. Extracción de lineart nítido emulando entintado con plumilla G-pen
+        lineart = cv2.adaptiveThreshold(
+            smooth, 255, 
+            cv2.ADAPTIVE_THRESH_MEAN_C, 
+            cv2.THRESH_BINARY, 
+            blockSize=9, C=4
+        )
+        lineart = cv2.erode(lineart, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)), iterations=1)
+        
+        # 3, 4 y 5. Cuantización de sombras y tramado Screentone
+        step = max(5, min(w, h) // 110)
+        y_coords, x_coords = np.indices((h, w), dtype=np.float32)
+        center_offset = step / 2.0
+        dot_dist = np.sqrt((x_coords % step - center_offset)**2 + (y_coords % step - center_offset)**2)
+        
+        # Inicializar lienzo en blanco puro (255)
+        manga = np.full((h, w), 255, dtype=np.uint8)
+        
+        # Sombras profundas: negro absoluto (tinta china sólida)
+        manga[smooth < 55] = 0
+        
+        # Sombras medias: trama de puntos (screentone)
+        mid_mask = (smooth >= 55) & (smooth < 165)
+        shadow_intensity = (165.0 - smooth.astype(np.float32)) / 110.0
+        max_dot_radius = center_offset * 0.95
+        dot_radius = shadow_intensity * max_dot_radius
+        
+        screentone_dots = (dot_dist <= dot_radius) & mid_mask
+        manga[screentone_dots] = 0
+        
+        # Superposición de lineart entintado (trazos en negro 0)
+        manga[lineart == 0] = 0
+        
+        # Convertir a 3 canales BGR para compatibilidad total con la UI
+        res = cv2.cvtColor(manga, cv2.COLOR_GRAY2BGR)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(res, "JAPANESE MANGA // CLASSIC SCREENTONE & G-PEN LINEART", (15, h - 15), font, scale, (0, 0, 0), 1, cv2.LINE_AA)
         return res
 
     # =========================================================================

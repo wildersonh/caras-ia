@@ -251,6 +251,8 @@ class AppReconocimientoFacial:
             ("👻 Estelas Espectrales (Ghosting Frame Echo)", "GHOSTING"),
             ("🟩 Pantalla Verde Croma (Green Screen Studio)", "GREEN_SCREEN"),
             ("👤 Aislamiento de Retrato (Sujeto Color / Fondo B&W)", "PORTRAIT_ISOLATE"),
+            ("🌊 Pixel Sorting (Derretimiento Digital Glitch)", "PIXEL_SORTING"),
+            ("✒️ Manga Japonés Clásico (Screentone & G-Pen)", "MANGA_JAPANESE"),
             ("🔮 Espejo de Feria / Lupa (Pinch & Bulge)", "BULGE_MIRROR"),
             ("🌀 Remolino / Vórtice (Swirl Vortex)", "SWIRL"),
             ("💠 Caleidoscopio Radial (8 Sectores Pop)", "KALEIDOSCOPE"),
