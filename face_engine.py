@@ -32,7 +32,11 @@ class FaceAnalyzer:
             providers=['CPUExecutionProvider']
         )
 
-    def analyze_image(self, img_bgr):
+    def analyze_image(self, img_bgr, enable_sniper_filter=False):
+        """
+        Analiza la imagen. Si enable_sniper_filter=True, aplica el filtro óptico
+        de mira de rifle (Sniper Scope) en lugar del HUD táctico estándar.
+        """
         h, w, _ = img_bgr.shape
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
@@ -41,15 +45,17 @@ class FaceAnalyzer:
         annotated_img = img_bgr.copy()
         faces_results = []
         
-        # 1. Dibujar elementos de HUD global (Marcos tácticos exteriores y rejilla)
-        self._draw_hud_outer_frame(annotated_img, w, h)
-        
+        # 1. Si no hay rostros detectados
         if not detection_result.face_landmarks:
-            # Si no hay rostros, mostrar banner de búsqueda
-            cv2.putText(annotated_img, "STATUS: SEARCHING TARGET...", (30, h // 2), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (57, 255, 20), 2, cv2.LINE_AA)
+            if enable_sniper_filter:
+                annotated_img = self._apply_sniper_scope_effect(img_bgr, center=(w // 2, h // 2))
+            else:
+                self._draw_hud_outer_frame(annotated_img, w, h)
+                cv2.putText(annotated_img, "STATUS: SEARCHING TARGET...", (30, h // 2), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (57, 255, 20), 2, cv2.LINE_AA)
             return annotated_img, []
 
+        # 2. Procesar cada rostro detectado
         for face_idx, lms in enumerate(detection_result.face_landmarks):
             xs = [lm.x * w for lm in lms]
             ys = [lm.y * h for lm in lms]
@@ -66,18 +72,10 @@ class FaceAnalyzer:
             
             face_crop = img_bgr[crop_y1:crop_y2, crop_x1:crop_x2]
             
-            # 2. Análisis de Género, Edad, Piel y Ojos
+            # Análisis biométrico
             gender_info = self._predict_gender_and_age(face_crop)
             skin_info = self._analyze_skin_tone(img_rgb, lms, w, h)
             eye_info = self._analyze_eye_color(img_rgb, lms, w, h)
-            
-            # 3. Dibujar retícula táctica HUD estilo cyberpunk (brackets, cruz, puntos de rastreo)
-            self._draw_hud_face_target(
-                annotated_img, lms, w, h, 
-                (x_min, y_min, x_max, y_max), 
-                gender_info, skin_info, eye_info, 
-                face_crop, face_idx
-            )
             
             face_data = {
                 "face_id": face_idx + 1,
@@ -94,19 +92,122 @@ class FaceAnalyzer:
                 "eye_confidence": eye_info["confidence"]
             }
             faces_results.append(face_data)
-            
+
+        # 3. Renderizado visual según el modo de filtro seleccionado
+        if enable_sniper_filter:
+            # Centrar la mira del rifle en el rostro principal detectado
+            main_face = faces_results[0]
+            x1, y1, x2, y2 = main_face["bbox"]
+            center_x = (x1 + x2) // 2
+            center_y = int(y1 + (y2 - y1) * 0.42) # Centrado a la altura de los ojos/nariz
+            annotated_img = self._apply_sniper_scope_effect(img_bgr, center=(center_x, center_y))
+        else:
+            # Modo HUD Táctico estándar
+            self._draw_hud_outer_frame(annotated_img, w, h)
+            for idx, f in enumerate(faces_results):
+                lms = detection_result.face_landmarks[idx]
+                x1, y1, x2, y2 = f["bbox"]
+                crop = img_bgr[max(0, y1):min(h, y2), max(0, x1):min(w, x2)]
+                self._draw_hud_face_target(
+                    annotated_img, lms, w, h, 
+                    f["bbox"], 
+                    {"gender": f["gender"], "confidence": f["gender_confidence"], "age": f["estimated_age"]}, 
+                    {"name": f["skin_tone"]}, 
+                    {"name": f["eye_color"]}, 
+                    crop, idx
+                )
+
         return annotated_img, faces_results
 
+    def _apply_sniper_scope_effect(self, img_bgr, center=None):
+        """
+        Aplica el filtro visual de Mira de Rifle (Sniper Scope):
+        - Viñeta exterior negra con lente circular
+        - Tinte térmico / infrarrojo rojo intenso cinematográfico
+        - Retícula balística con marcas de graduación (mil-dot hash marks) en azul acero
+        """
+        h, w, _ = img_bgr.shape
+        if center is None:
+            cx, cy = w // 2, h // 2
+        else:
+            cx, cy = center
+            
+        radius = int(min(w, h) * 0.47)
+        
+        # 1. Tinte rojo cinematográfico intenso (Thermal / Infrarrojo de mira)
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        r_ch = np.clip(gray.astype(np.float32) * 1.35 + 30, 0, 255).astype(np.uint8)
+        g_ch = np.clip(gray.astype(np.float32) * 0.20 - 5, 0, 255).astype(np.uint8)
+        b_ch = np.clip(gray.astype(np.float32) * 0.10 - 10, 0, 255).astype(np.uint8)
+        red_tinted = cv2.merge([b_ch, g_ch, r_ch])
+        
+        # 2. Máscara circular con borde suave (Feathered Scope Edge)
+        mask = np.zeros((h, w), dtype=np.float32)
+        cv2.circle(mask, (cx, cy), radius, 1.0, -1, cv2.LINE_AA)
+        
+        # Suavizado de bordes para imitar el bisel óptico del visor de rifle
+        blur_k = max(15, (radius // 18) * 2 + 1)
+        mask_blurred = cv2.GaussianBlur(mask, (blur_k, blur_k), 0)
+        
+        # Fondo completamente negro fuera del círculo de la mira
+        output = (red_tinted.astype(np.float32) * mask_blurred[:, :, np.newaxis]).astype(np.uint8)
+        
+        # Anillo perimetral tenue de la lente
+        cv2.circle(output, (cx, cy), radius, (40, 20, 100), 2, cv2.LINE_AA)
+        
+        # 3. Retícula de Mira de Francotirador (Sniper Crosshair)
+        # Color azul acero / cian tenue idéntico a la imagen de referencia
+        c_reticle = (245, 205, 155) # BGR
+        
+        arm_len = int(radius * 0.90)
+        gap = max(4, int(radius * 0.04)) # Pequeña apertura central
+        
+        # Líneas de la cruz (Horizontal y Vertical)
+        # Brazo izquierdo y derecho
+        cv2.line(output, (cx - arm_len, cy), (cx - gap, cy), c_reticle, 1, cv2.LINE_AA)
+        cv2.line(output, (cx + gap, cy), (cx + arm_len, cy), c_reticle, 1, cv2.LINE_AA)
+        # Brazo superior e inferior
+        cv2.line(output, (cx, cy - arm_len), (cx, cy - gap), c_reticle, 1, cv2.LINE_AA)
+        cv2.line(output, (cx, cy + gap), (cx, cy + arm_len), c_reticle, 1, cv2.LINE_AA)
+        
+        # Puntos de la micro-cruz central
+        cv2.line(output, (cx - 2, cy), (cx + 2, cy), c_reticle, 1, cv2.LINE_AA)
+        cv2.line(output, (cx, cy - 2), (cx, cy + 2), c_reticle, 1, cv2.LINE_AA)
+        
+        # 4. Graduaciones balísticas / Mil-dot hash marks (las líneas perpendiculares)
+        tick_step = max(8, int(radius * 0.08))
+        num_ticks = 5
+        tick_len = max(5, int(radius * 0.045))
+        
+        for i in range(1, num_ticks + 1):
+            dist = gap + i * tick_step
+            # Graduaciones en eje horizontal (líneas verticales)
+            if dist < arm_len - 5:
+                t_h = tick_len if i % 2 == 1 else int(tick_len * 0.65)
+                cv2.line(output, (cx - dist, cy - t_h), (cx - dist, cy + t_h), c_reticle, 1, cv2.LINE_AA)
+                cv2.line(output, (cx + dist, cy - t_h), (cx + dist, cy + t_h), c_reticle, 1, cv2.LINE_AA)
+                
+            # Graduaciones en eje vertical (líneas horizontales)
+            if dist < arm_len - 5:
+                t_w = tick_len if i % 2 == 1 else int(tick_len * 0.65)
+                cv2.line(output, (cx - t_w, cy - dist), (cx + t_w, cy - dist), c_reticle, 1, cv2.LINE_AA)
+                cv2.line(output, (cx - t_w, cy + dist), (cx + t_w, cy + dist), c_reticle, 1, cv2.LINE_AA)
+                
+        # 5. Marcador discreto de telemetría de francotirador en la esquina inferior
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.32, min(w, h) / 1800.0)
+        cv2.putText(output, "OPTIC: 12x THERMAL // RETICLE: MIL-DOT", (15, h - 15), font, scale, (140, 160, 180), 1, cv2.LINE_AA)
+        
+        return output
+
     def _draw_hud_outer_frame(self, img, w, h):
-        """Dibuja el marco táctico exterior con esquinas cortadas (chamfer) y barra de estado militar/cibernética"""
-        c_green = (57, 255, 20)      # Verde neón #39FF14
-        c_faint = (40, 70, 45)       # Verde muy tenue para rejilla
+        c_green = (57, 255, 20)
+        c_faint = (40, 70, 45)
         c_white = (240, 245, 245)
         
         pad = max(10, int(min(w, h) * 0.025))
-        cut = max(14, int(min(w, h) * 0.04)) # corte diagonal de las esquinas
+        cut = max(14, int(min(w, h) * 0.04))
         
-        # 1. Rejilla táctica tenue de fondo
         step_x = max(60, w // 4)
         step_y = max(60, h // 4)
         for x in range(step_x, w, step_x):
@@ -114,7 +215,6 @@ class FaceAnalyzer:
         for y in range(step_y, h, step_y):
             cv2.line(img, (pad, y), (w - pad, y), c_faint, 1, cv2.LINE_AA)
             
-        # 2. Marco perimetral con esquinas biseladas (Polígono exterior táctico)
         pts = np.array([
             [pad + cut, pad], [w - pad - cut, pad],
             [w - pad, pad + cut], [w - pad, h - pad - cut],
@@ -123,105 +223,84 @@ class FaceAnalyzer:
         ], np.int32)
         cv2.polylines(img, [pts], isClosed=True, color=c_green, thickness=2, lineType=cv2.LINE_AA)
         
-        # 3. Marcas de esquina decorativas
         d = cut + 10
         cv2.line(img, (pad, pad + cut), (pad, pad + d), c_green, 3)
         cv2.line(img, (pad + cut, pad), (pad + d, pad), c_green, 3)
         cv2.line(img, (w - pad, pad + cut), (w - pad, pad + d), c_green, 3)
         cv2.line(img, (w - pad - cut, pad), (w - pad - d, pad), c_green, 3)
         
-        # 4. Barra de estado superior estilo HUD militar
         now_str = datetime.datetime.now().strftime("%H:%M:%S")
         status_txt = f"SYSTEM STATUS: SCANNING | TIME: {now_str}"
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale = max(0.35, min(w, h) / 1600.0)
         cv2.putText(img, status_txt, (pad + cut + 15, pad + 18), font, scale, c_white, 1, cv2.LINE_AA)
         
-        # Icono táctico de señal en la esquina superior derecha
         sig_x = w - pad - cut - 55
         sig_y = pad + 18
         for i, h_bar in enumerate([4, 7, 10, 13]):
             bx = sig_x + i * 6
             cv2.line(img, (bx, sig_y), (bx, sig_y - h_bar), c_green, 2)
             
-        # 5. Barra de estado inferior
         sub_txt = "BIO-IDENT PROTOCOL: v2.4 // TARGET ACQUIRED"
         cv2.putText(img, sub_txt, (pad + cut + 15, h - pad - 10), font, scale, (180, 220, 190), 1, cv2.LINE_AA)
 
     def _draw_hud_face_target(self, img, lms, w, h, bbox, gender_info, skin_info, eye_info, face_crop, idx):
         x1, y1, x2, y2 = bbox
-        c_neon = (57, 255, 20)       # Verde neón táctico BGR
+        c_neon = (57, 255, 20)
         c_white = (255, 255, 255)
         c_dark = (15, 25, 18)
         
-        # 1. RETÍCULA TÁCTICA: Brackets en las 4 esquinas `[ ]`
         box_w = x2 - x1
         box_h = y2 - y1
         corner_len = max(14, int(min(box_w, box_h) * 0.28))
         thick = max(2, int(box_w / 120.0))
         
-        # Esquina Superior Izquierda ┌
         cv2.line(img, (x1, y1), (x1 + corner_len, y1), c_neon, thick, cv2.LINE_AA)
         cv2.line(img, (x1, y1), (x1, y1 + corner_len), c_neon, thick, cv2.LINE_AA)
-        # Esquina Superior Derecha ┐
         cv2.line(img, (x2, y1), (x2 - corner_len, y1), c_neon, thick, cv2.LINE_AA)
         cv2.line(img, (x2, y1), (x2, y1 + corner_len), c_neon, thick, cv2.LINE_AA)
-        # Esquina Inferior Izquierda └
         cv2.line(img, (x1, y2), (x1 + corner_len, y2), c_neon, thick, cv2.LINE_AA)
         cv2.line(img, (x1, y2), (x1, y2 - corner_len), c_neon, thick, cv2.LINE_AA)
-        # Esquina Inferior Derecha ┘
         cv2.line(img, (x2, y2), (x2 - corner_len, y2), c_neon, thick, cv2.LINE_AA)
         cv2.line(img, (x2, y2), (x2, y2 - corner_len), c_neon, thick, cv2.LINE_AA)
         
-        # 2. CRUZ TÁCTICA CENTRAL `+` (Crosshair)
         cx = (x1 + x2) // 2
         cy = (y1 + y2) // 2
         cross_r = max(8, int(box_w * 0.12))
         cv2.line(img, (cx - cross_r, cy), (cx + cross_r, cy), c_neon, 1, cv2.LINE_AA)
         cv2.line(img, (cx, cy - cross_r), (cx, cy + cross_r), c_neon, 1, cv2.LINE_AA)
         
-        # 3. PUNTOS BIOMÉTRICOS DE RASTREO (Nodos brillantes de tracking como en la foto)
-        # Nodos en ojos, nariz, boca, mejillas y barbilla
         key_nodes = [
             468, 473,       # Iris
             1, 4, 168,      # Nariz
             61, 291, 0, 17, # Boca
             152,            # Barbilla
-            234, 454        # Contorno facial
+            234, 454        # Contorno
         ]
         for node_idx in key_nodes:
             nx = int(lms[node_idx].x * w)
             ny = int(lms[node_idx].y * h)
-            # Anillo exterior sutil
             cv2.circle(img, (nx, ny), 5, c_neon, 1, cv2.LINE_AA)
-            # Punto central brillante
             cv2.circle(img, (nx, ny), 2, (200, 255, 200), -1, cv2.LINE_AA)
             
-        # 4. TARJETA LATERAL DE TELEMETRÍA (Estilo "OFFLINE ACTIVITY DETECTED" del HUD)
         card_w = max(190, int(w * 0.32))
         card_h = max(170, int(h * 0.30))
-        
-        # Posición inteligente: si el rostro está en la izquierda, colocamos la tarjeta en la derecha
         pad = 25
         card_x1 = pad if (x1 > w * 0.45 or w < 600) else (w - card_w - pad)
         card_y1 = max(pad + 30, min(y1 - 20, h - card_h - pad))
         card_x2 = card_x1 + card_w
         card_y2 = card_y1 + card_h
         
-        # Fondo semi-transparente de la tarjeta táctica
         overlay = img.copy()
         cv2.rectangle(overlay, (card_x1, card_y1), (card_x2, card_y2), c_dark, -1)
         cv2.addWeighted(overlay, 0.78, img, 0.22, 0, img)
         
-        # Borde exterior de la tarjeta
         cv2.rectangle(img, (card_x1, card_y1), (card_x2, card_y2), c_neon, 1, cv2.LINE_AA)
-        # Esquinas dobles tácticas
         cv2.line(img, (card_x1, card_y1), (card_x1 + 10, card_y1), c_neon, 2)
         cv2.line(img, (card_x1, card_y1), (card_x1, card_y1 + 10), c_neon, 2)
         cv2.line(img, (card_x2, card_y2), (card_x2 - 10, card_y2), c_neon, 2)
         cv2.line(img, (card_x2, card_y2), (card_x2, card_y2 - 10), c_neon, 2)
         
-        # Miniatura del rostro dentro de la tarjeta
         thumb_size = max(45, int(card_h * 0.38))
         thumb_x = card_x1 + 10
         thumb_y = card_y1 + 12
@@ -231,7 +310,6 @@ class FaceAnalyzer:
             img[thumb_y:thumb_y + thumb_size, thumb_x:thumb_x + thumb_size] = thumb
             cv2.rectangle(img, (thumb_x, thumb_y), (thumb_x + thumb_size, thumb_y + thumb_size), c_neon, 1)
             
-        # Título de la tarjeta
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale_hdr = max(0.35, min(w, h) / 1800.0)
         scale_txt = max(0.32, min(w, h) / 2000.0)
@@ -240,7 +318,6 @@ class FaceAnalyzer:
         cv2.putText(img, "TARGET DETECTED", (tx_hdr, thumb_y + 12), font, scale_hdr, c_neon, 1, cv2.LINE_AA)
         cv2.putText(img, f"ID: SUBJ-0{idx+1}", (tx_hdr, thumb_y + 28), font, scale_hdr, c_white, 1, cv2.LINE_AA)
         
-        # Líneas de telemetría biométrica
         line_y = thumb_y + thumb_size + 18
         spacing = max(16, int(card_h * 0.12))
         

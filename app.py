@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 
-# Importar el motor de análisis facial con estilo HUD Táctico
+# Importar el motor de análisis facial con estilo HUD Táctico y Filtro Sniper
 from face_engine import FaceAnalyzer
 
 def natural_sort_key(s):
@@ -18,9 +18,9 @@ def natural_sort_key(s):
 class AppReconocimientoFacial:
     def __init__(self, root):
         self.root = root
-        self.root.title("BIO-TACTICAL RECONNAISSANCE SYSTEM // HUD v2.4")
-        self.root.geometry("1240x860")
-        self.root.minsize(1120, 760)
+        self.root.title("BIO-TACTICAL RECONNAISSANCE SYSTEM // HUD v2.5")
+        self.root.geometry("1240x870")
+        self.root.minsize(1120, 780)
         
         # Archivo para guardar las evaluaciones del usuario
         self.csv_path = "evaluaciones_usuario.csv"
@@ -39,6 +39,9 @@ class AppReconocimientoFacial:
         self.current_file_path = ""
         self.last_results = []
         self.tk_img_ref = None
+        
+        # Estado del Filtro Óptico (Mira de Rifle)
+        self.filter_sniper_active = False
         
         # Escaneo de imágenes del dataset del usuario
         self.dataset_images = self._scan_dataset_images()
@@ -76,31 +79,29 @@ class AppReconocimientoFacial:
         return files
 
     def _setup_hud_theme(self):
-        # Paleta Cyberpunk / Tactical HUD (Idéntica al estilo de referencia)
         self.c_bg_root = "#080C10"      # Fondo principal ultra oscuro
         self.c_bg_card = "#0D131A"      # Tarjetas tácticas
         self.c_bg_inner = "#121A24"     # Contenedores interiores
-        self.c_neon_green = "#39FF14"   # Verde Neón HUD (#39FF14 / #00FF66)
+        self.c_neon_green = "#39FF14"   # Verde Neón HUD
         self.c_neon_dark = "#173820"    # Verde oscuro de acento
         self.c_border = "#1E2C3A"       # Borde de paneles
         self.c_border_neon = "#22C55E"  # Borde iluminado
         self.c_text_bright = "#F0FDF4"  # Blanco ligeramente verdoso
         self.c_text_dim = "#86EFAC"     # Verde claro secundario
         self.c_text_muted = "#64748B"   # Gris técnico
-        self.c_amber = "#F59E0B"        # Naranja de advertencia / corrección
+        self.c_amber = "#F59E0B"        # Naranja de advertencia
+        self.c_crimson = "#EF4444"      # Rojo mira de rifle
         
         self.root.configure(bg=self.c_bg_root)
         
         self.style = ttk.Style()
         self.style.theme_use("clam")
         
-        # Configurar estilos ttk oscuros
         self.style.configure(".", background=self.c_bg_root, foreground=self.c_text_bright, font=("Consolas", 10))
         self.style.configure("TFrame", background=self.c_bg_root)
         self.style.configure("Card.TFrame", background=self.c_bg_card)
         self.style.configure("Inner.TFrame", background=self.c_bg_inner)
         
-        # Combobox oscuro
         self.style.map("TCombobox", 
             fieldbackground=[("readonly", self.c_bg_inner)],
             selectbackground=[("readonly", self.c_neon_dark)],
@@ -114,12 +115,11 @@ class AppReconocimientoFacial:
         # ========================================================
         header_frame = tk.Frame(self.root, bg=self.c_bg_card, bd=1, relief="solid", highlightthickness=1)
         header_frame.configure(highlightbackground=self.c_border_neon)
-        header_frame.pack(fill="x", padx=14, pady=(10, 6), ipady=4, ipadx=10)
+        header_frame.pack(fill="x", padx=14, pady=(8, 4), ipady=3, ipadx=10)
         
-        # Título estilo militar / ciber-reconocimiento
         lbl_top_brand = tk.Label(
             header_frame, 
-            text="[ SYSTEM STATUS: ONLINE // BIO-RECONNAISSANCE PROTOCOL v2.4 ]", 
+            text="[ SYSTEM STATUS: ONLINE // BIO-RECONNAISSANCE PROTOCOL v2.5 ]", 
             bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 11, "bold")
         )
         lbl_top_brand.pack(side="left", padx=5)
@@ -127,7 +127,7 @@ class AppReconocimientoFacial:
         now_time = datetime.datetime.now().strftime("%H:%M:%S")
         self.lbl_hud_time = tk.Label(
             header_frame, 
-            text=f"SYS TIME: {now_time} | RADAR: ACTIVE | TARGET LOCK: READY", 
+            text=f"SYS TIME: {now_time} | OPTIC SENSOR: ACTIVE | SCOPE: READY", 
             bg=self.c_bg_card, fg=self.c_text_dim, font=("Consolas", 10)
         )
         self.lbl_hud_time.pack(side="right", padx=5)
@@ -138,7 +138,7 @@ class AppReconocimientoFacial:
         main_container = tk.Frame(self.root, bg=self.c_bg_root)
         main_container.pack(fill="both", expand=True, padx=14, pady=4)
         main_container.columnconfigure(0, weight=6) # Visor HUD
-        main_container.columnconfigure(1, weight=5) # Panel de Telemetría
+        main_container.columnconfigure(1, weight=5) # Telemetría
         main_container.rowconfigure(0, weight=1)
 
         # --------------------------------------------------------
@@ -150,12 +150,12 @@ class AppReconocimientoFacial:
         
         # A) Barra de acciones generales (Fijada abajo del todo)
         action_bar = tk.Frame(left_card, bg=self.c_bg_card)
-        action_bar.pack(side="bottom", fill="x", padx=10, pady=(6, 10))
+        action_bar.pack(side="bottom", fill="x", padx=10, pady=(4, 8))
         
         btn_load = tk.Button(
             action_bar, text="[ 📂 CARGAR OBJETIVO ]", bg="#122417", fg=self.c_neon_green,
             activebackground=self.c_neon_green, activeforeground="#000000",
-            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=4, cursor="hand2",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=3, cursor="hand2",
             command=self.load_image_dialog
         )
         btn_load.pack(side="left", padx=(0, 6))
@@ -163,7 +163,7 @@ class AppReconocimientoFacial:
         btn_cam = tk.Button(
             action_bar, text="[ 📷 SENSOR ÓPTICO ]", bg="#16202C", fg="#38BDF8",
             activebackground="#38BDF8", activeforeground="#000000",
-            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=4, cursor="hand2",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=8, pady=3, cursor="hand2",
             command=self.capture_from_webcam
         )
         btn_cam.pack(side="left", padx=(0, 6))
@@ -172,14 +172,14 @@ class AppReconocimientoFacial:
         
         btn_filter_man = tk.Button(
             action_bar, text="HOMBRES (1-12)", bg="#0E1A29", fg="#60A5FA",
-            font=("Consolas", 9), relief="solid", bd=1, padx=6, pady=3, cursor="hand2",
+            font=("Consolas", 9), relief="solid", bd=1, padx=6, pady=2, cursor="hand2",
             command=lambda: self._select_by_keyword("hombre")
         )
         btn_filter_man.pack(side="left", padx=2)
         
         btn_filter_woman = tk.Button(
             action_bar, text="MUJERES (1-18)", bg="#261224", fg="#F472B6",
-            font=("Consolas", 9), relief="solid", bd=1, padx=6, pady=3, cursor="hand2",
+            font=("Consolas", 9), relief="solid", bd=1, padx=6, pady=2, cursor="hand2",
             command=lambda: self._select_by_keyword("mujer")
         )
         btn_filter_woman.pack(side="left", padx=2)
@@ -187,12 +187,12 @@ class AppReconocimientoFacial:
         # B) Barra de navegación del dataset (Fijada encima de las acciones)
         dataset_bar = tk.Frame(left_card, bg=self.c_bg_inner, bd=1, relief="solid", highlightthickness=1)
         dataset_bar.configure(highlightbackground=self.c_border)
-        dataset_bar.pack(side="bottom", fill="x", padx=10, pady=(6, 4), ipady=3, ipadx=4)
+        dataset_bar.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=2, ipadx=4)
         
         tk.Label(dataset_bar, text="TARGET FILE:", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 9, "bold")).pack(side="left", padx=(6, 4))
         
         img_display_names = [os.path.basename(p) for p in self.dataset_images]
-        self.cmb_dataset = ttk.Combobox(dataset_bar, values=img_display_names, state="readonly", width=20)
+        self.cmb_dataset = ttk.Combobox(dataset_bar, values=img_display_names, state="readonly", width=18)
         if img_display_names:
             self.cmb_dataset.current(0)
         self.cmb_dataset.pack(side="left", padx=4)
@@ -201,7 +201,7 @@ class AppReconocimientoFacial:
         btn_prev = tk.Button(
             dataset_bar, text="◀ PREV", bg="#152B1E", fg=self.c_neon_green,
             activebackground=self.c_neon_green, activeforeground="#000000",
-            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=6, pady=2, cursor="hand2",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=6, pady=1, cursor="hand2",
             command=self.prev_dataset_image
         )
         btn_prev.pack(side="left", padx=2)
@@ -209,21 +209,48 @@ class AppReconocimientoFacial:
         btn_next = tk.Button(
             dataset_bar, text="NEXT ▶", bg="#152B1E", fg=self.c_neon_green,
             activebackground=self.c_neon_green, activeforeground="#000000",
-            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=6, pady=2, cursor="hand2",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=6, pady=1, cursor="hand2",
             command=self.next_dataset_image
         )
         btn_next.pack(side="left", padx=2)
         
         btn_rand = tk.Button(
             dataset_bar, text="🎲 RANDOM", bg="#1E1E38", fg="#C084FC",
-            font=("Consolas", 9), relief="solid", bd=1, padx=6, pady=2, cursor="hand2",
+            font=("Consolas", 9), relief="solid", bd=1, padx=5, pady=1, cursor="hand2",
             command=self.random_dataset_image
         )
-        btn_rand.pack(side="left", padx=4)
+        btn_rand.pack(side="left", padx=3)
 
-        # C) Barra superior del visor táctico
+        # C) APARTADO DE FILTRO (Solicitado por el usuario: Activar / Quitar Mira de Rifle)
+        filter_section = tk.Frame(left_card, bg="#131924", bd=1, relief="solid", highlightthickness=1)
+        filter_section.configure(highlightbackground=self.c_border_neon)
+        filter_section.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=3, ipadx=4)
+        
+        tk.Label(
+            filter_section, text="🎯 APARTADO DE FILTRO:", 
+            bg="#131924", fg=self.c_text_bright, font=("Consolas", 9, "bold")
+        ).pack(side="left", padx=(6, 8))
+        
+        # Botón Toggle para Activar / Desactivar la Mira de Rifle
+        self.btn_sniper_toggle = tk.Button(
+            filter_section, 
+            text="[ ○ MIRA DE RIFLE: DESACTIVADA ]", 
+            bg="#1E293B", fg="#94A3B8",
+            activebackground="#EF4444", activeforeground="#FFFFFF",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=10, pady=3, cursor="hand2",
+            command=self.toggle_sniper_filter
+        )
+        self.btn_sniper_toggle.pack(side="left", padx=4)
+        
+        self.lbl_filter_hint = tk.Label(
+            filter_section, text="(Simula visor telescópico térmico con retícula balística)", 
+            bg="#131924", fg=self.c_text_muted, font=("Segoe UI", 8, "italic")
+        )
+        self.lbl_filter_hint.pack(side="left", padx=(6, 4))
+
+        # D) Barra superior del visor táctico
         top_visor_bar = tk.Frame(left_card, bg=self.c_bg_card)
-        top_visor_bar.pack(side="top", fill="x", padx=10, pady=(10, 4))
+        top_visor_bar.pack(side="top", fill="x", padx=10, pady=(8, 4))
         
         self.lbl_file_info = tk.Label(top_visor_bar, text=">> SCANNING TARGET...", bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 10, "bold"))
         self.lbl_file_info.pack(side="left")
@@ -231,7 +258,7 @@ class AppReconocimientoFacial:
         self.lbl_file_counter = tk.Label(top_visor_bar, text="", bg=self.c_bg_card, fg=self.c_text_muted, font=("Consolas", 9))
         self.lbl_file_counter.pack(side="right")
         
-        # D) Canvas central para el visor HUD táctico
+        # E) Canvas central para el visor HUD táctico / Mira de rifle
         self.image_canvas = tk.Canvas(
             left_card, 
             bg="#05070A", 
@@ -251,15 +278,15 @@ class AppReconocimientoFacial:
         # CARD 3: TELEMETRÍA Y LOGS DEL SISTEMA (Anclado al fondo derecho)
         card_stats = tk.Frame(right_card, bg=self.c_bg_inner, bd=1, relief="solid", highlightthickness=1)
         card_stats.configure(highlightbackground=self.c_border)
-        card_stats.pack(side="bottom", fill="x", padx=10, pady=(6, 10), ipady=4, ipadx=8)
+        card_stats.pack(side="bottom", fill="x", padx=10, pady=(4, 8), ipady=3, ipadx=8)
         
-        tk.Label(card_stats, text="[ RECON DATABASE // LOGS ]", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 9, "bold")).pack(anchor="w", padx=6, pady=(2, 2))
+        tk.Label(card_stats, text="[ RECON DATABASE // LOGS ]", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 9, "bold")).pack(anchor="w", padx=6, pady=(1, 1))
         
         self.lbl_stats = tk.Label(card_stats, text="Cargando telemetría...", bg=self.c_bg_inner, fg=self.c_text_dim, font=("Consolas", 9))
         self.lbl_stats.pack(anchor="w", padx=6)
         
         btn_hist_bar = tk.Frame(card_stats, bg=self.c_bg_inner)
-        btn_hist_bar.pack(fill="x", padx=6, pady=(4, 2))
+        btn_hist_bar.pack(fill="x", padx=6, pady=(3, 2))
         
         btn_open_csv = tk.Button(
             btn_hist_bar, text="[ ABRIR LOG CSV ]", bg="#132319", fg=self.c_neon_green,
@@ -275,64 +302,60 @@ class AppReconocimientoFacial:
         )
         btn_retrain.pack(side="left")
 
-        # CARD 1: PREDICCIÓN BIOMÉTRICA DE LA IA (Arriba a la derecha)
+        # CARD 1: PREDICCIÓN BIOMÉTRICA DE LA IA
         card_pred = tk.Frame(right_card, bg=self.c_bg_inner, bd=1, relief="solid", highlightthickness=1)
         card_pred.configure(highlightbackground=self.c_border)
-        card_pred.pack(side="top", fill="x", padx=10, pady=(10, 6), ipady=6, ipadx=8)
+        card_pred.pack(side="top", fill="x", padx=10, pady=(8, 4), ipady=4, ipadx=8)
         
-        tk.Label(card_pred, text="[ BIOMETRIC SCAN TELEMETRY ]", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 11, "bold")).pack(anchor="w", padx=8, pady=(2, 6))
+        tk.Label(card_pred, text="[ BIOMETRIC SCAN TELEMETRY ]", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 11, "bold")).pack(anchor="w", padx=8, pady=(2, 4))
         
         grid_res = tk.Frame(card_pred, bg=self.c_bg_inner)
         grid_res.pack(fill="x", padx=8)
         grid_res.columnconfigure(1, weight=1)
         
-        # Fila Género
-        tk.Label(grid_res, text="GENDER:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=0, column=0, sticky="w", pady=3)
+        tk.Label(grid_res, text="GENDER:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=0, column=0, sticky="w", pady=2)
         self.lbl_gender = tk.Label(grid_res, text="WAITING FOR SCAN...", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 11, "bold"))
-        self.lbl_gender.grid(row=0, column=1, sticky="w", padx=8, pady=3)
+        self.lbl_gender.grid(row=0, column=1, sticky="w", padx=8, pady=2)
         
-        # Fila Color de Ojos
-        tk.Label(grid_res, text="OCULAR TONE:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=1, column=0, sticky="w", pady=3)
+        tk.Label(grid_res, text="OCULAR TONE:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=1, column=0, sticky="w", pady=2)
         eye_frame = tk.Frame(grid_res, bg=self.c_bg_inner)
-        eye_frame.grid(row=1, column=1, sticky="w", padx=8, pady=3)
+        eye_frame.grid(row=1, column=1, sticky="w", padx=8, pady=2)
         self.swatch_eye = tk.Canvas(eye_frame, width=18, height=18, bg="#2D3748", highlightthickness=1, highlightbackground=self.c_neon_green)
         self.swatch_eye.pack(side="left", padx=(0, 6))
         self.lbl_eye = tk.Label(eye_frame, text="-", bg=self.c_bg_inner, fg=self.c_text_bright, font=("Consolas", 10))
         self.lbl_eye.pack(side="left")
         
-        # Fila Color de Piel
-        tk.Label(grid_res, text="SKIN CHROMATICS:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=2, column=0, sticky="w", pady=3)
+        tk.Label(grid_res, text="SKIN CHROMATICS:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=2, column=0, sticky="w", pady=2)
         skin_frame = tk.Frame(grid_res, bg=self.c_bg_inner)
-        skin_frame.grid(row=2, column=1, sticky="w", padx=8, pady=3)
+        skin_frame.grid(row=2, column=1, sticky="w", padx=8, pady=2)
         self.swatch_skin = tk.Canvas(skin_frame, width=18, height=18, bg="#2D3748", highlightthickness=1, highlightbackground=self.c_neon_green)
         self.swatch_skin.pack(side="left", padx=(0, 6))
         self.lbl_skin = tk.Label(skin_frame, text="-", bg=self.c_bg_inner, fg=self.c_text_bright, font=("Consolas", 10))
         self.lbl_skin.pack(side="left")
         
-        # Fila Edad
-        tk.Label(grid_res, text="AGE ESTIMATE:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=3, column=0, sticky="w", pady=3)
+        tk.Label(grid_res, text="AGE ESTIMATE:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 10, "bold")).grid(row=3, column=0, sticky="w", pady=2)
         self.lbl_age = tk.Label(grid_res, text="-", bg=self.c_bg_inner, fg=self.c_text_bright, font=("Consolas", 10))
-        self.lbl_age.grid(row=3, column=1, sticky="w", padx=8, pady=3)
+        self.lbl_age.grid(row=3, column=1, sticky="w", padx=8, pady=2)
 
         # CARD 2: EVALUACIÓN Y VALIDACIÓN DEL USUARIO ("YO VALÚO LA RESPUESTA")
         card_eval = tk.Frame(right_card, bg=self.c_bg_card, bd=1, relief="solid", highlightthickness=1)
         card_eval.configure(highlightbackground=self.c_border)
-        card_eval.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 6), ipady=4, ipadx=8)
+        card_eval.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 4), ipady=3, ipadx=8)
         
-        tk.Label(card_eval, text="[ HUMAN VERIFICATION // OPERATOR VALUATION ]", bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 11, "bold")).pack(anchor="w", padx=8, pady=(4, 2))
+        tk.Label(card_eval, text="[ HUMAN VERIFICATION // OPERATOR VALUATION ]", bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 11, "bold")).pack(anchor="w", padx=8, pady=(2, 1))
         tk.Label(
             card_eval, 
             text="Valida si la telemetría es exacta o anula con valores manuales para retroalimentar el sistema:", 
             bg=self.c_bg_card, fg=self.c_text_muted, font=("Segoe UI", 9), wraplength=420, justify="left"
-        ).pack(anchor="w", padx=8, pady=(0, 6))
+        ).pack(anchor="w", padx=8, pady=(0, 4))
         
         quick_btn_frame = tk.Frame(card_eval, bg=self.c_bg_card)
-        quick_btn_frame.pack(fill="x", padx=8, pady=(0, 6))
+        quick_btn_frame.pack(fill="x", padx=8, pady=(0, 4))
         
         self.btn_correct = tk.Button(
             quick_btn_frame, text="[ ✔ APROBAR PREDICCIÓN ]", bg="#0F3820", fg=self.c_neon_green,
             activebackground=self.c_neon_green, activeforeground="#000000",
-            font=("Consolas", 10, "bold"), relief="solid", bd=1, padx=10, pady=5, cursor="hand2",
+            font=("Consolas", 10, "bold"), relief="solid", bd=1, padx=10, pady=4, cursor="hand2",
             command=self.on_approve_prediction
         )
         self.btn_correct.pack(side="left", padx=(0, 8))
@@ -340,17 +363,16 @@ class AppReconocimientoFacial:
         self.btn_wrong = tk.Button(
             quick_btn_frame, text="[ ✖ MANUAL OVERRIDE ]", bg="#3B2610", fg=self.c_amber,
             activebackground=self.c_amber, activeforeground="#000000",
-            font=("Consolas", 10, "bold"), relief="solid", bd=1, padx=10, pady=5, cursor="hand2",
+            font=("Consolas", 10, "bold"), relief="solid", bd=1, padx=10, pady=4, cursor="hand2",
             command=self.on_enable_correction
         )
         self.btn_wrong.pack(side="left")
         
-        # Formulario de corrección manual
         self.form_frame = tk.Frame(card_eval, bg=self.c_bg_inner, bd=1, relief="solid", highlightthickness=1)
         self.form_frame.configure(highlightbackground=self.c_border)
-        self.form_frame.pack(fill="x", padx=8, pady=2, ipady=4, ipadx=6)
+        self.form_frame.pack(fill="x", padx=8, pady=2, ipady=3, ipadx=6)
         
-        tk.Label(self.form_frame, text="VALORES REALES VALIDADOS:", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=6, pady=(2, 4))
+        tk.Label(self.form_frame, text="VALORES REALES VALIDADOS:", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=6, pady=(1, 3))
         
         tk.Label(self.form_frame, text="GÉNERO REAL:", bg=self.c_bg_inner, fg=self.c_text_muted, font=("Consolas", 9)).grid(row=1, column=0, sticky="w", padx=6, pady=2)
         self.cmb_real_gender = ttk.Combobox(self.form_frame, values=["Hombre", "Mujer"], state="readonly", width=20)
@@ -379,15 +401,38 @@ class AppReconocimientoFacial:
         self.btn_save_eval = tk.Button(
             card_eval, text="[ 💾 GUARDAR EVALUACIÓN ]", bg="#153B25", fg=self.c_neon_green,
             activebackground=self.c_neon_green, activeforeground="#000000",
-            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=10, pady=4, cursor="hand2",
+            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=10, pady=3, cursor="hand2",
             command=self.save_user_evaluation
         )
-        self.btn_save_eval.pack(anchor="w", padx=8, pady=(4, 2))
+        self.btn_save_eval.pack(anchor="w", padx=8, pady=(3, 2))
         
         self.lbl_eval_status = tk.Label(card_eval, text="", bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 9))
         self.lbl_eval_status.pack(anchor="w", padx=8)
 
         self._update_stats_display()
+
+    def toggle_sniper_filter(self):
+        """Activa o desactiva el filtro óptico de Mira de Rifle"""
+        self.filter_sniper_active = not self.filter_sniper_active
+        
+        if self.filter_sniper_active:
+            # Estilo activo (Rojo térmico brillante)
+            self.btn_sniper_toggle.config(
+                text="[ 🔴 MIRA DE RIFLE: ACTIVADA ]",
+                bg="#450A0A", fg="#F87171",
+                activebackground="#EF4444", activeforeground="#FFFFFF"
+            )
+        else:
+            # Estilo inactivo (Gris oscuro)
+            self.btn_sniper_toggle.config(
+                text="[ ○ MIRA DE RIFLE: DESACTIVADA ]",
+                bg="#1E293B", fg="#94A3B8",
+                activebackground="#EF4444", activeforeground="#FFFFFF"
+            )
+            
+        # Reprocesar inmediatamente la imagen actual con el nuevo modo de filtro
+        if self.current_file_path:
+            self.process_image_path(self.current_file_path)
 
     def _load_initial_example(self):
         if self.dataset_images:
@@ -476,12 +521,15 @@ class AppReconocimientoFacial:
             
         self.current_img_bgr = img_bgr
         
-        # Procesar con el motor de IA en estilo HUD táctico
-        annotated_bgr, results = self.analyzer.analyze_image(img_bgr)
+        # Procesar con el motor de IA (pasando el estado del filtro de mira de rifle)
+        annotated_bgr, results = self.analyzer.analyze_image(
+            img_bgr, 
+            enable_sniper_filter=self.filter_sniper_active
+        )
         self.current_annotated_bgr = annotated_bgr
         self.last_results = results
         
-        # Mostrar imagen en el Canvas HUD
+        # Mostrar imagen en el Canvas HUD / Mira de Rifle
         self._display_image(annotated_bgr)
         
         # Actualizar datos de telemetría
