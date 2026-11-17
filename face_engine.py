@@ -6,6 +6,7 @@ import onnxruntime as ort
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from mediapipe.tasks.python.vision import FaceLandmarksConnections
 
 class FaceAnalyzer:
     def __init__(self, models_dir="models"):
@@ -31,11 +32,20 @@ class FaceAnalyzer:
             self.gender_path, 
             providers=['CPUExecutionProvider']
         )
+        
+        # Conexiones de teselación facial 3D de MediaPipe
+        self.tesselation = FaceLandmarksConnections.FACE_LANDMARKS_TESSELATION
 
-    def analyze_image(self, img_bgr, enable_sniper_filter=False):
+    def analyze_image(self, img_bgr, filter_mode="HUD"):
         """
-        Analiza la imagen. Si enable_sniper_filter=True, aplica el filtro óptico
-        de mira de rifle (Sniper Scope) en lugar del HUD táctico estándar.
+        Analiza la imagen y aplica el filtro visual seleccionado:
+        - "HUD": HUD Cyberpunk Táctico estándar
+        - "SNIPER": Mira de Rifle de Francotirador Roja (mil-dot reticle)
+        - "NIGHT_VISION": Visión Nocturna Militar NVG (Green Phosphor)
+        - "THERMAL": Termografía FLIR / Predator Heatmap
+        - "TERMINATOR": Visor Ciborg Terminator T-800
+        - "FACE_MESH": Malla Holográfica 3D Wireframe (478 vértices)
+        - "CCTV": Cámara de Seguridad Vintage 90s con Timestamp
         """
         h, w, _ = img_bgr.shape
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -47,22 +57,29 @@ class FaceAnalyzer:
         
         # 1. Si no hay rostros detectados
         if not detection_result.face_landmarks:
-            if enable_sniper_filter:
+            if filter_mode == "SNIPER":
                 annotated_img = self._apply_sniper_scope_effect(img_bgr, center=(w // 2, h // 2))
+            elif filter_mode == "NIGHT_VISION":
+                annotated_img = self._apply_night_vision_effect(img_bgr, center=(w // 2, h // 2))
+            elif filter_mode == "THERMAL":
+                annotated_img = self._apply_thermal_effect(img_bgr, center=(w // 2, h // 2))
+            elif filter_mode == "TERMINATOR":
+                annotated_img = self._apply_terminator_effect(img_bgr, None, w, h)
+            elif filter_mode == "CCTV":
+                annotated_img = self._apply_cctv_effect(img_bgr, None, w, h)
             else:
                 self._draw_hud_outer_frame(annotated_img, w, h)
                 cv2.putText(annotated_img, "STATUS: SEARCHING TARGET...", (30, h // 2), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (57, 255, 20), 2, cv2.LINE_AA)
             return annotated_img, []
 
-        # 2. Procesar cada rostro detectado
+        # 2. Procesar cada rostro detectado (Extracción de atributos)
         for face_idx, lms in enumerate(detection_result.face_landmarks):
             xs = [lm.x * w for lm in lms]
             ys = [lm.y * h for lm in lms]
             x_min, x_max = max(0, int(min(xs))), min(w, int(max(xs)))
             y_min, y_max = max(0, int(min(ys))), min(h, int(max(ys)))
             
-            # Margen para el recorte
             margin_x = int((x_max - x_min) * 0.15)
             margin_y = int((y_max - y_min) * 0.15)
             crop_x1 = max(0, x_min - margin_x)
@@ -72,7 +89,6 @@ class FaceAnalyzer:
             
             face_crop = img_bgr[crop_y1:crop_y2, crop_x1:crop_x2]
             
-            # Análisis biométrico
             gender_info = self._predict_gender_and_age(face_crop)
             skin_info = self._analyze_skin_tone(img_rgb, lms, w, h)
             eye_info = self._analyze_eye_color(img_rgb, lms, w, h)
@@ -93,21 +109,30 @@ class FaceAnalyzer:
             }
             faces_results.append(face_data)
 
-        # 3. Renderizado visual según el modo de filtro seleccionado
-        if enable_sniper_filter:
-            # Centrar la mira del rifle en el rostro principal detectado
-            main_face = faces_results[0]
-            x1, y1, x2, y2 = main_face["bbox"]
-            center_x = (x1 + x2) // 2
-            center_y = int(y1 + (y2 - y1) * 0.42) # Centrado a la altura de los ojos/nariz
-            annotated_img = self._apply_sniper_scope_effect(img_bgr, center=(center_x, center_y))
-        else:
-            # Modo HUD Táctico estándar
+        # 3. Aplicar el filtro visual seleccionado
+        main_face = faces_results[0]
+        x1, y1, x2, y2 = main_face["bbox"]
+        target_center = ((x1 + x2) // 2, int(y1 + (y2 - y1) * 0.42))
+        main_lms = detection_result.face_landmarks[0]
+
+        if filter_mode == "SNIPER":
+            annotated_img = self._apply_sniper_scope_effect(img_bgr, center=target_center)
+        elif filter_mode == "NIGHT_VISION":
+            annotated_img = self._apply_night_vision_effect(img_bgr, center=target_center)
+        elif filter_mode == "THERMAL":
+            annotated_img = self._apply_thermal_effect(img_bgr, center=target_center)
+        elif filter_mode == "TERMINATOR":
+            annotated_img = self._apply_terminator_effect(img_bgr, main_face, w, h)
+        elif filter_mode == "FACE_MESH":
+            annotated_img = self._apply_face_mesh_effect(img_bgr, main_lms, main_face, w, h)
+        elif filter_mode == "CCTV":
+            annotated_img = self._apply_cctv_effect(img_bgr, main_face, w, h)
+        else: # "HUD" por defecto
             self._draw_hud_outer_frame(annotated_img, w, h)
             for idx, f in enumerate(faces_results):
                 lms = detection_result.face_landmarks[idx]
-                x1, y1, x2, y2 = f["bbox"]
-                crop = img_bgr[max(0, y1):min(h, y2), max(0, x1):min(w, x2)]
+                fx1, fy1, fx2, fy2 = f["bbox"]
+                crop = img_bgr[max(0, fy1):min(h, fy2), max(0, fx1):min(w, fx2)]
                 self._draw_hud_face_target(
                     annotated_img, lms, w, h, 
                     f["bbox"], 
@@ -119,87 +144,242 @@ class FaceAnalyzer:
 
         return annotated_img, faces_results
 
+    # =========================================================================
+    # FILTRO 1: MIRA DE RIFLE (SNIPER RED SCOPE)
+    # =========================================================================
     def _apply_sniper_scope_effect(self, img_bgr, center=None):
-        """
-        Aplica el filtro visual de Mira de Rifle (Sniper Scope):
-        - Viñeta exterior negra con lente circular
-        - Tinte térmico / infrarrojo rojo intenso cinematográfico
-        - Retícula balística con marcas de graduación (mil-dot hash marks) en azul acero
-        """
         h, w, _ = img_bgr.shape
-        if center is None:
-            cx, cy = w // 2, h // 2
-        else:
-            cx, cy = center
-            
+        cx, cy = (w // 2, h // 2) if center is None else center
         radius = int(min(w, h) * 0.47)
         
-        # 1. Tinte rojo cinematográfico intenso (Thermal / Infrarrojo de mira)
+        # Tinte rojo intenso
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         r_ch = np.clip(gray.astype(np.float32) * 1.35 + 30, 0, 255).astype(np.uint8)
         g_ch = np.clip(gray.astype(np.float32) * 0.20 - 5, 0, 255).astype(np.uint8)
         b_ch = np.clip(gray.astype(np.float32) * 0.10 - 10, 0, 255).astype(np.uint8)
         red_tinted = cv2.merge([b_ch, g_ch, r_ch])
         
-        # 2. Máscara circular con borde suave (Feathered Scope Edge)
+        # Máscara circular con viñeta
         mask = np.zeros((h, w), dtype=np.float32)
         cv2.circle(mask, (cx, cy), radius, 1.0, -1, cv2.LINE_AA)
-        
-        # Suavizado de bordes para imitar el bisel óptico del visor de rifle
         blur_k = max(15, (radius // 18) * 2 + 1)
         mask_blurred = cv2.GaussianBlur(mask, (blur_k, blur_k), 0)
-        
-        # Fondo completamente negro fuera del círculo de la mira
         output = (red_tinted.astype(np.float32) * mask_blurred[:, :, np.newaxis]).astype(np.uint8)
         
-        # Anillo perimetral tenue de la lente
+        # Anillo perimetral
         cv2.circle(output, (cx, cy), radius, (40, 20, 100), 2, cv2.LINE_AA)
         
-        # 3. Retícula de Mira de Francotirador (Sniper Crosshair)
-        # Color azul acero / cian tenue idéntico a la imagen de referencia
-        c_reticle = (245, 205, 155) # BGR
-        
+        # Retícula balística en azul acero / cian
+        c_reticle = (245, 205, 155)
         arm_len = int(radius * 0.90)
-        gap = max(4, int(radius * 0.04)) # Pequeña apertura central
+        gap = max(4, int(radius * 0.04))
         
-        # Líneas de la cruz (Horizontal y Vertical)
-        # Brazo izquierdo y derecho
         cv2.line(output, (cx - arm_len, cy), (cx - gap, cy), c_reticle, 1, cv2.LINE_AA)
         cv2.line(output, (cx + gap, cy), (cx + arm_len, cy), c_reticle, 1, cv2.LINE_AA)
-        # Brazo superior e inferior
         cv2.line(output, (cx, cy - arm_len), (cx, cy - gap), c_reticle, 1, cv2.LINE_AA)
         cv2.line(output, (cx, cy + gap), (cx, cy + arm_len), c_reticle, 1, cv2.LINE_AA)
         
-        # Puntos de la micro-cruz central
         cv2.line(output, (cx - 2, cy), (cx + 2, cy), c_reticle, 1, cv2.LINE_AA)
         cv2.line(output, (cx, cy - 2), (cx, cy + 2), c_reticle, 1, cv2.LINE_AA)
         
-        # 4. Graduaciones balísticas / Mil-dot hash marks (las líneas perpendiculares)
         tick_step = max(8, int(radius * 0.08))
-        num_ticks = 5
         tick_len = max(5, int(radius * 0.045))
-        
-        for i in range(1, num_ticks + 1):
+        for i in range(1, 6):
             dist = gap + i * tick_step
-            # Graduaciones en eje horizontal (líneas verticales)
             if dist < arm_len - 5:
                 t_h = tick_len if i % 2 == 1 else int(tick_len * 0.65)
                 cv2.line(output, (cx - dist, cy - t_h), (cx - dist, cy + t_h), c_reticle, 1, cv2.LINE_AA)
                 cv2.line(output, (cx + dist, cy - t_h), (cx + dist, cy + t_h), c_reticle, 1, cv2.LINE_AA)
-                
-            # Graduaciones en eje vertical (líneas horizontales)
-            if dist < arm_len - 5:
                 t_w = tick_len if i % 2 == 1 else int(tick_len * 0.65)
                 cv2.line(output, (cx - t_w, cy - dist), (cx + t_w, cy - dist), c_reticle, 1, cv2.LINE_AA)
                 cv2.line(output, (cx - t_w, cy + dist), (cx + t_w, cy + dist), c_reticle, 1, cv2.LINE_AA)
                 
-        # 5. Marcador discreto de telemetría de francotirador en la esquina inferior
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale = max(0.32, min(w, h) / 1800.0)
         cv2.putText(output, "OPTIC: 12x THERMAL // RETICLE: MIL-DOT", (15, h - 15), font, scale, (140, 160, 180), 1, cv2.LINE_AA)
-        
         return output
 
+    # =========================================================================
+    # FILTRO 2: VISIÓN NOCTURNA MILITAR (NVG GREEN PHOSPHOR)
+    # =========================================================================
+    def _apply_night_vision_effect(self, img_bgr, center=None):
+        h, w, _ = img_bgr.shape
+        cx, cy = (w // 2, h // 2) if center is None else center
+        radius = int(min(w, h) * 0.47)
+        
+        # Fósforo verde táctico
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        g_ch = np.clip(gray.astype(np.float32) * 1.45 + 40, 0, 255).astype(np.uint8)
+        b_ch = np.clip(gray.astype(np.float32) * 0.15, 0, 255).astype(np.uint8)
+        r_ch = np.clip(gray.astype(np.float32) * 0.10, 0, 255).astype(np.uint8)
+        nvg_tinted = cv2.merge([b_ch, g_ch, r_ch])
+        
+        # Scanlines y ruido de visión nocturna
+        nvg_tinted[::3, :] = (nvg_tinted[::3, :].astype(np.float32) * 0.82).astype(np.uint8)
+        
+        # Viñeta circular NVG
+        mask = np.zeros((h, w), dtype=np.float32)
+        cv2.circle(mask, (cx, cy), radius, 1.0, -1, cv2.LINE_AA)
+        blur_k = max(15, (radius // 16) * 2 + 1)
+        mask_blurred = cv2.GaussianBlur(mask, (blur_k, blur_k), 0)
+        output = (nvg_tinted.astype(np.float32) * mask_blurred[:, :, np.newaxis]).astype(np.uint8)
+        
+        # Brújula angular y anillo militar
+        c_nvg = (80, 255, 100) # Verde brillante
+        cv2.circle(output, (cx, cy), radius, (20, 80, 30), 2, cv2.LINE_AA)
+        cv2.circle(output, (cx, cy), int(radius * 0.65), (20, 100, 35), 1, cv2.LINE_AA)
+        
+        # Cruz militar con marcadores de rumbo (000°, 090°, 180°, 270°)
+        arm = int(radius * 0.85)
+        cv2.line(output, (cx - arm, cy), (cx + arm, cy), c_nvg, 1, cv2.LINE_AA)
+        cv2.line(output, (cx, cy - arm), (cx, cy + arm), c_nvg, 1, cv2.LINE_AA)
+        cv2.circle(output, (cx, cy), 4, c_nvg, 1, cv2.LINE_AA)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.32, min(w, h) / 1800.0)
+        cv2.putText(output, "NVG GEN-3 // PHOSPHOR P43 // GAIN: +18dB", (15, h - 15), font, scale, c_nvg, 1, cv2.LINE_AA)
+        cv2.putText(output, "IR BEACON: ON", (15, 25), font, scale, c_nvg, 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # FILTRO 3: TERMOGRAFÍA FLIR / PREDATOR (HEATMAP)
+    # =========================================================================
+    def _apply_thermal_effect(self, img_bgr, center=None):
+        h, w, _ = img_bgr.shape
+        cx, cy = (w // 2, h // 2) if center is None else center
+        
+        # Gradiente térmico FLIR (Inferno o Jet)
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        # Realzar el contraste de la piel humana
+        gray_eq = cv2.equalizeHist(gray)
+        thermal = cv2.applyColorMap(gray_eq, cv2.COLORMAP_INFERNO)
+        
+        # Barra lateral de escala térmica (°C)
+        bar_w = max(14, int(w * 0.025))
+        bar_h = int(h * 0.6)
+        bar_x = w - bar_w - 20
+        bar_y = (h - bar_h) // 2
+        
+        grad = np.linspace(255, 0, bar_h, dtype=np.uint8)[:, np.newaxis]
+        grad_bar = cv2.applyColorMap(np.repeat(grad, bar_w, axis=1), cv2.COLORMAP_INFERNO)
+        thermal[bar_y:bar_y + bar_h, bar_x:bar_x + bar_w] = grad_bar
+        cv2.rectangle(thermal, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (255, 255, 255), 1)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.32, min(w, h) / 1800.0)
+        cv2.putText(thermal, "38.5 C", (bar_x - 55, bar_y + 12), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(thermal, "36.6 C", (bar_x - 55, bar_y + bar_h // 2), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(thermal, "22.0 C", (bar_x - 55, bar_y + bar_h), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
+        
+        # Retícula de medición térmica en cruz
+        c_cross = (0, 255, 255) # Amarillo
+        cr = max(12, int(min(w, h) * 0.05))
+        cv2.line(thermal, (cx - cr, cy), (cx + cr, cy), c_cross, 1, cv2.LINE_AA)
+        cv2.line(thermal, (cx, cy - cr), (cx, cy + cr), c_cross, 1, cv2.LINE_AA)
+        cv2.putText(thermal, "SPOT: 36.8 C", (cx + 8, cy - 8), font, scale, c_cross, 1, cv2.LINE_AA)
+        
+        cv2.putText(thermal, "FLIR THERMAL IMAGING // CALIBRATED", (15, h - 15), font, scale, (200, 220, 255), 1, cv2.LINE_AA)
+        return thermal
+
+    # =========================================================================
+    # FILTRO 4: TERMINATOR T-800 HUD (CYBER RED HUD)
+    # =========================================================================
+    def _apply_terminator_effect(self, img_bgr, face_data, w, h):
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        term_r = cv2.convertScaleAbs(gray, alpha=1.35, beta=25)
+        term_g = np.zeros_like(gray)
+        term_b = np.zeros_like(gray)
+        output = cv2.merge([b_ch := term_b, g_ch := term_g, term_r])
+        
+        # Scanlines CRT rojas horizontales
+        output[::3, :] = (output[::3, :].astype(np.float32) * 0.65).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.35, min(w, h) / 1600.0)
+        c_red = (50, 50, 255) # Rojo brillante BGR
+        c_white = (240, 240, 240)
+        
+        # Recuadro de escaneo sobre el rostro si existe
+        if face_data:
+            x1, y1, x2, y2 = face_data["bbox"]
+            cv2.rectangle(output, (x1, y1), (x2, y2), c_red, 2)
+            cv2.line(output, (x1, (y1 + y2) // 2), (x2, (y1 + y2) // 2), c_red, 1)
+            
+            # Texto de evaluación cibernética estilo Terminator
+            cv2.putText(output, "ANALYSIS: HUMAN SUBJECT", (x1, max(20, y1 - 25)), font, scale, c_red, 1, cv2.LINE_AA)
+            cv2.putText(output, f"GENDER: {face_data['gender'].upper()}", (x1, max(35, y1 - 10)), font, scale, c_white, 1, cv2.LINE_AA)
+            cv2.putText(output, "ASSESSMENT: ZERO THREAT", (x1, min(h - 10, y2 + 18)), font, scale, c_red, 1, cv2.LINE_AA)
+            
+        # Telemetría en la parte superior e inferior
+        cv2.putText(output, "CYBERDYNE SYSTEMS // T-800 MODEL 101", (15, 25), font, scale, c_red, 1, cv2.LINE_AA)
+        cv2.putText(output, "ROM 0x7FA4 // MATCH PROBABILITY: 99.8%", (15, h - 15), font, scale, c_red, 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # FILTRO 5: MALLA HOLOGRÁFICA 3D WIREFRAME (CYBER FACE MESH)
+    # =========================================================================
+    def _apply_face_mesh_effect(self, img_bgr, lms, face_data, w, h):
+        # Fondo oscurecido para resaltar el holograma
+        output = (img_bgr.astype(np.float32) * 0.35).astype(np.uint8)
+        
+        # Color cian holográfico neón (#00F0FF -> BGR: 255, 240, 0)
+        c_wire = (255, 230, 0)
+        c_node = (255, 255, 200)
+        
+        # Dibujar las 2556 líneas de la teselación facial 3D
+        for conn in self.tesselation:
+            pt1 = (int(lms[conn.start].x * w), int(lms[conn.start].y * h))
+            pt2 = (int(lms[conn.end].x * w), int(lms[conn.end].y * h))
+            cv2.line(output, pt1, pt2, c_wire, 1, cv2.LINE_AA)
+            
+        # Nodos brillantes en puntos clave
+        for idx in [468, 473, 1, 4, 168, 61, 291, 0, 17, 152]:
+            nx, ny = int(lms[idx].x * w), int(lms[idx].y * h)
+            cv2.circle(output, (nx, ny), 4, (0, 255, 100), -1, cv2.LINE_AA)
+            cv2.circle(output, (nx, ny), 7, c_wire, 1, cv2.LINE_AA)
+            
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.35, min(w, h) / 1600.0)
+        cv2.putText(output, "[ 3D BIOMETRIC TOPOLOGY // 478 VERTICES ]", (15, 25), font, scale, (255, 240, 0), 1, cv2.LINE_AA)
+        if face_data:
+            cv2.putText(output, f"TARGET: {face_data['gender'].upper()} // MESH LOCKED", (15, h - 15), font, scale, (200, 255, 100), 1, cv2.LINE_AA)
+        return output
+
+    # =========================================================================
+    # FILTRO 6: CÁMARA DE SEGURIDAD CCTV 90s
+    # =========================================================================
+    def _apply_cctv_effect(self, img_bgr, face_data, w, h):
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        cctv = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        # Bajo contraste y tinte vintage verdoso frío
+        cctv = cv2.convertScaleAbs(cctv, alpha=0.92, beta=18)
+        cctv[:, :, 0] = np.clip(cctv[:, :, 0].astype(np.float32) * 1.05, 0, 255).astype(np.uint8)
+        
+        # Scanlines horizontales
+        cctv[::3, :] = (cctv[::3, :].astype(np.float32) * 0.86).astype(np.uint8)
+        
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.38, min(w, h) / 1500.0)
+        
+        # Indicador de grabación REC rojo parpadeante
+        cv2.circle(cctv, (25, 25), 6, (0, 0, 255), -1, cv2.LINE_AA)
+        cv2.putText(cctv, "REC [LIVE]", (40, 30), font, scale, (240, 240, 240), 1, cv2.LINE_AA)
+        
+        now_str = datetime.datetime.now().strftime("%d-%b-%Y  %H:%M:%S  EST").upper()
+        cv2.putText(cctv, now_str, (15, h - 15), font, scale, (240, 240, 240), 1, cv2.LINE_AA)
+        cv2.putText(cctv, "CAM 04 [SEC-CORRIDOR A]", (w - 240, 30), font, scale, (200, 200, 200), 1, cv2.LINE_AA)
+        
+        # Caja de detección simple tipo CCTV
+        if face_data:
+            x1, y1, x2, y2 = face_data["bbox"]
+            cv2.rectangle(cctv, (x1, y1), (x2, y2), (255, 255, 255), 1)
+            cv2.putText(cctv, "OBJ_DETECT", (x1, max(15, y1 - 8)), font, scale * 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+            
+        return cctv
+
+    # =========================================================================
+    # HUD TÁCTICO ESTÁNDAR
+    # =========================================================================
     def _draw_hud_outer_frame(self, img, w, h):
         c_green = (57, 255, 20)
         c_faint = (40, 70, 45)
@@ -241,7 +421,7 @@ class FaceAnalyzer:
             bx = sig_x + i * 6
             cv2.line(img, (bx, sig_y), (bx, sig_y - h_bar), c_green, 2)
             
-        sub_txt = "BIO-IDENT PROTOCOL: v2.4 // TARGET ACQUIRED"
+        sub_txt = "BIO-IDENT PROTOCOL: v2.5 // TARGET ACQUIRED"
         cv2.putText(img, sub_txt, (pad + cut + 15, h - pad - 10), font, scale, (180, 220, 190), 1, cv2.LINE_AA)
 
     def _draw_hud_face_target(self, img, lms, w, h, bbox, gender_info, skin_info, eye_info, face_crop, idx):
@@ -262,7 +442,7 @@ class FaceAnalyzer:
         cv2.line(img, (x1, y2), (x1 + corner_len, y2), c_neon, thick, cv2.LINE_AA)
         cv2.line(img, (x1, y2), (x1, y2 - corner_len), c_neon, thick, cv2.LINE_AA)
         cv2.line(img, (x2, y2), (x2 - corner_len, y2), c_neon, thick, cv2.LINE_AA)
-        cv2.line(img, (x2, y2), (x2, y2 - corner_len), c_neon, thick, cv2.LINE_AA)
+        cv2.line(img, (x2, y2), (x2 - corner_len, y2), c_neon, thick, cv2.LINE_AA)
         
         cx = (x1 + x2) // 2
         cy = (y1 + y2) // 2
@@ -336,6 +516,9 @@ class FaceAnalyzer:
         a_txt = f"AGE EST: ~{gender_info['age']} YRS"
         cv2.putText(img, a_txt, (card_x1 + 10, line_y), font, scale_txt, (140, 180, 160), 1, cv2.LINE_AA)
 
+    # =========================================================================
+    # MÉTODOS DE EXTRACCIÓN DE ATRIBUTOS BIOMÉTRICOS
+    # =========================================================================
     def _predict_gender_and_age(self, face_bgr):
         if face_bgr is None or face_bgr.size == 0:
             return {"gender": "Desconocido", "confidence": 0.0, "age": 0}

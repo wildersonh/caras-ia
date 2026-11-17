@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 
-# Importar el motor de análisis facial con estilo HUD Táctico y Filtro Sniper
+# Importar el motor de análisis facial con suite completa de 7 filtros
 from face_engine import FaceAnalyzer
 
 def natural_sort_key(s):
@@ -18,9 +18,9 @@ def natural_sort_key(s):
 class AppReconocimientoFacial:
     def __init__(self, root):
         self.root = root
-        self.root.title("BIO-TACTICAL RECONNAISSANCE SYSTEM // HUD v2.5")
-        self.root.geometry("1240x870")
-        self.root.minsize(1120, 780)
+        self.root.title("BIO-TACTICAL RECONNAISSANCE SYSTEM // HUD v2.6")
+        self.root.geometry("1260x880")
+        self.root.minsize(1140, 780)
         
         # Archivo para guardar las evaluaciones del usuario
         self.csv_path = "evaluaciones_usuario.csv"
@@ -40,8 +40,9 @@ class AppReconocimientoFacial:
         self.last_results = []
         self.tk_img_ref = None
         
-        # Estado del Filtro Óptico (Mira de Rifle)
-        self.filter_sniper_active = False
+        # Modo de filtro óptico activo:
+        # "HUD", "SNIPER", "NIGHT_VISION", "THERMAL", "TERMINATOR", "FACE_MESH", "CCTV"
+        self.current_filter_mode = "HUD"
         
         # Escaneo de imágenes del dataset del usuario
         self.dataset_images = self._scan_dataset_images()
@@ -119,7 +120,7 @@ class AppReconocimientoFacial:
         
         lbl_top_brand = tk.Label(
             header_frame, 
-            text="[ SYSTEM STATUS: ONLINE // BIO-RECONNAISSANCE PROTOCOL v2.5 ]", 
+            text="[ SYSTEM STATUS: ONLINE // MULTI-OPTIC BIO-RECONNAISSANCE v2.6 ]", 
             bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 11, "bold")
         )
         lbl_top_brand.pack(side="left", padx=5)
@@ -127,7 +128,7 @@ class AppReconocimientoFacial:
         now_time = datetime.datetime.now().strftime("%H:%M:%S")
         self.lbl_hud_time = tk.Label(
             header_frame, 
-            text=f"SYS TIME: {now_time} | OPTIC SENSOR: ACTIVE | SCOPE: READY", 
+            text=f"SYS TIME: {now_time} | MULTI-FILTER SUITE: 7 MODES | READY", 
             bg=self.c_bg_card, fg=self.c_text_dim, font=("Consolas", 10)
         )
         self.lbl_hud_time.pack(side="right", padx=5)
@@ -187,7 +188,7 @@ class AppReconocimientoFacial:
         # B) Barra de navegación del dataset (Fijada encima de las acciones)
         dataset_bar = tk.Frame(left_card, bg=self.c_bg_inner, bd=1, relief="solid", highlightthickness=1)
         dataset_bar.configure(highlightbackground=self.c_border)
-        dataset_bar.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=2, ipadx=4)
+        dataset_bar.pack(side="bottom", fill="x", padx=10, pady=(3, 3), ipady=2, ipadx=4)
         
         tk.Label(dataset_bar, text="TARGET FILE:", bg=self.c_bg_inner, fg=self.c_neon_green, font=("Consolas", 9, "bold")).pack(side="left", padx=(6, 4))
         
@@ -221,36 +222,66 @@ class AppReconocimientoFacial:
         )
         btn_rand.pack(side="left", padx=3)
 
-        # C) APARTADO DE FILTRO (Solicitado por el usuario: Activar / Quitar Mira de Rifle)
-        filter_section = tk.Frame(left_card, bg="#131924", bd=1, relief="solid", highlightthickness=1)
+        # C) APARTADO DE FILTROS ÓPTICOS MULTI-MODO (Suite Completa)
+        filter_section = tk.Frame(left_card, bg="#101722", bd=1, relief="solid", highlightthickness=1)
         filter_section.configure(highlightbackground=self.c_border_neon)
-        filter_section.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=3, ipadx=4)
+        filter_section.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=4, ipadx=4)
+        
+        top_filter_bar = tk.Frame(filter_section, bg="#101722")
+        top_filter_bar.pack(fill="x", padx=4, pady=(1, 3))
         
         tk.Label(
-            filter_section, text="🎯 APARTADO DE FILTRO:", 
-            bg="#131924", fg=self.c_text_bright, font=("Consolas", 9, "bold")
-        ).pack(side="left", padx=(6, 8))
+            top_filter_bar, text="🎯 APARTADO DE FILTROS:", 
+            bg="#101722", fg=self.c_neon_green, font=("Consolas", 9, "bold")
+        ).pack(side="left", padx=(4, 6))
         
-        # Botón Toggle para Activar / Desactivar la Mira de Rifle
-        self.btn_sniper_toggle = tk.Button(
-            filter_section, 
-            text="[ ○ MIRA DE RIFLE: DESACTIVADA ]", 
-            bg="#1E293B", fg="#94A3B8",
-            activebackground="#EF4444", activeforeground="#FFFFFF",
-            font=("Consolas", 9, "bold"), relief="solid", bd=1, padx=10, pady=3, cursor="hand2",
-            command=self.toggle_sniper_filter
-        )
-        self.btn_sniper_toggle.pack(side="left", padx=4)
+        # Mapeo de nombres para el selector
+        self.filter_options = [
+            ("HUD Estándar (Cyberpunk Verde)", "HUD"),
+            ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
+            ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
+            ("🔥 Termografía FLIR (Predator Heatmap)", "THERMAL"),
+            ("🤖 Terminator T-800 (Cyber Red HUD)", "TERMINATOR"),
+            ("🕸️ Malla Holográfica 3D (Wireframe)", "FACE_MESH"),
+            ("📹 Cámara CCTV 90s (Security Feed)", "CCTV")
+        ]
         
-        self.lbl_filter_hint = tk.Label(
-            filter_section, text="(Simula visor telescópico térmico con retícula balística)", 
-            bg="#131924", fg=self.c_text_muted, font=("Segoe UI", 8, "italic")
+        self.cmb_filters = ttk.Combobox(
+            top_filter_bar, 
+            values=[opt[0] for opt in self.filter_options], 
+            state="readonly", width=36
         )
-        self.lbl_filter_hint.pack(side="left", padx=(6, 4))
+        self.cmb_filters.current(0)
+        self.cmb_filters.pack(side="left", padx=4)
+        self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
+        
+        # Botonera de acceso directo rápido a los filtros
+        quick_filters_bar = tk.Frame(filter_section, bg="#101722")
+        quick_filters_bar.pack(fill="x", padx=4, pady=(2, 1))
+        
+        buttons_spec = [
+            ("HUD", "HUD", "#1E293B", "#94A3B8"),
+            ("🎯 RIFLE", "SNIPER", "#450A0A", "#F87171"),
+            ("🟢 NVG", "NIGHT_VISION", "#0F2E1B", "#4ADE80"),
+            ("🔥 TÉRMICO", "THERMAL", "#3B1804", "#FB923C"),
+            ("🤖 T-800", "TERMINATOR", "#3A0D0D", "#FCA5A5"),
+            ("🕸️ 3D MESH", "FACE_MESH", "#082F49", "#38BDF8"),
+            ("📹 CCTV", "CCTV", "#1E293B", "#E2E8F0")
+        ]
+        
+        self.filter_buttons = {}
+        for label, mode_key, bg_col, fg_col in buttons_spec:
+            b = tk.Button(
+                quick_filters_bar, text=label, bg=bg_col, fg=fg_col,
+                font=("Consolas", 8, "bold"), relief="solid", bd=1, padx=4, pady=1, cursor="hand2",
+                command=lambda m=mode_key: self.set_filter_mode(m)
+            )
+            b.pack(side="left", padx=2)
+            self.filter_buttons[mode_key] = b
 
         # D) Barra superior del visor táctico
         top_visor_bar = tk.Frame(left_card, bg=self.c_bg_card)
-        top_visor_bar.pack(side="top", fill="x", padx=10, pady=(8, 4))
+        top_visor_bar.pack(side="top", fill="x", padx=10, pady=(6, 4))
         
         self.lbl_file_info = tk.Label(top_visor_bar, text=">> SCANNING TARGET...", bg=self.c_bg_card, fg=self.c_neon_green, font=("Consolas", 10, "bold"))
         self.lbl_file_info.pack(side="left")
@@ -258,7 +289,7 @@ class AppReconocimientoFacial:
         self.lbl_file_counter = tk.Label(top_visor_bar, text="", bg=self.c_bg_card, fg=self.c_text_muted, font=("Consolas", 9))
         self.lbl_file_counter.pack(side="right")
         
-        # E) Canvas central para el visor HUD táctico / Mira de rifle
+        # E) Canvas central para el visor HUD táctico y los filtros
         self.image_canvas = tk.Canvas(
             left_card, 
             bg="#05070A", 
@@ -411,26 +442,26 @@ class AppReconocimientoFacial:
 
         self._update_stats_display()
 
-    def toggle_sniper_filter(self):
-        """Activa o desactiva el filtro óptico de Mira de Rifle"""
-        self.filter_sniper_active = not self.filter_sniper_active
+    # =========================================================================
+    # CONTROL DE FILTROS ÓPTICOS
+    # =========================================================================
+    def _on_filter_combobox_selected(self, event=None):
+        idx = self.cmb_filters.current()
+        if 0 <= idx < len(self.filter_options):
+            mode_key = self.filter_options[idx][1]
+            self.set_filter_mode(mode_key)
+
+    def set_filter_mode(self, mode_key):
+        """Cambia el modo de filtro activo y actualiza la vista inmediatamente"""
+        self.current_filter_mode = mode_key
         
-        if self.filter_sniper_active:
-            # Estilo activo (Rojo térmico brillante)
-            self.btn_sniper_toggle.config(
-                text="[ 🔴 MIRA DE RIFLE: ACTIVADA ]",
-                bg="#450A0A", fg="#F87171",
-                activebackground="#EF4444", activeforeground="#FFFFFF"
-            )
-        else:
-            # Estilo inactivo (Gris oscuro)
-            self.btn_sniper_toggle.config(
-                text="[ ○ MIRA DE RIFLE: DESACTIVADA ]",
-                bg="#1E293B", fg="#94A3B8",
-                activebackground="#EF4444", activeforeground="#FFFFFF"
-            )
-            
-        # Reprocesar inmediatamente la imagen actual con el nuevo modo de filtro
+        # Sincronizar combobox
+        for i, opt in enumerate(self.filter_options):
+            if opt[1] == mode_key:
+                self.cmb_filters.current(i)
+                break
+                
+        # Reprocesar la imagen actual con el nuevo filtro
         if self.current_file_path:
             self.process_image_path(self.current_file_path)
 
@@ -521,15 +552,15 @@ class AppReconocimientoFacial:
             
         self.current_img_bgr = img_bgr
         
-        # Procesar con el motor de IA (pasando el estado del filtro de mira de rifle)
+        # Procesar con el motor de IA aplicando el filtro activo
         annotated_bgr, results = self.analyzer.analyze_image(
             img_bgr, 
-            enable_sniper_filter=self.filter_sniper_active
+            filter_mode=self.current_filter_mode
         )
         self.current_annotated_bgr = annotated_bgr
         self.last_results = results
         
-        # Mostrar imagen en el Canvas HUD / Mira de Rifle
+        # Mostrar imagen en el Canvas
         self._display_image(annotated_bgr)
         
         # Actualizar datos de telemetría
