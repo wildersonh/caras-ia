@@ -65,7 +65,7 @@ class FaceAnalyzer:
         """
         Analiza la imagen y aplica el filtro visual seleccionado:
         - "NONE": Sin ningún filtro (Foto original limpia al 100%)
-        - "MEWING": Modifica facciones (mandíbula ultra-afilada, pómulos esculpidos, estilo Chad)
+        - "MEWING": Filtro viral Mewing / Chad (ceja levantada estilo The Rock, mandíbula afilada, mejillas hundidas)
         - "RGB": Desfase cromático RGB Glitch / Split anaglifo 3D
         - "SNIPER": Mira de Rifle de Francotirador Roja (mil-dot reticle)
         - "NIGHT_VISION": Visión Nocturna Militar NVG (Green Phosphor)
@@ -148,13 +148,13 @@ class FaceAnalyzer:
         main_lms = detection_result.face_landmarks[0]
 
         if filter_mode == "NONE":
-            # Opción solicitada: Quitar filtro (mostrar imagen original limpia al 100%)
+            # Foto original limpia sin añadidos
             annotated_img = img_bgr.copy()
         elif filter_mode == "MEWING":
-            # Opción solicitada: Deformar facciones estilo Mewing / Chad
+            # Filtro viral idéntico a la referencia (Ceja levantada The Rock + Mandíbula Gigachad)
             annotated_img = self._apply_mewing_effect(img_bgr, main_lms, main_face, w, h)
         elif filter_mode == "RGB":
-            # Opción solicitada: Filtro RGB Chromatic Glitch Split
+            # Filtro RGB Chromatic Glitch Split
             annotated_img = self._apply_rgb_split_effect(img_bgr)
         elif filter_mode == "SNIPER":
             annotated_img = self._apply_sniper_scope_effect(img_bgr, center=target_center)
@@ -186,110 +186,190 @@ class FaceAnalyzer:
         return annotated_img, faces_results
 
     # =========================================================================
-    # NUEVO FILTRO: MEWING / CHAD LOOKSMAXXING (DEFORMACIÓN DE FACCIONES)
+    # FILTRO VIRAL MEWING / CHAD (CEJA THE ROCK + MANDÍBULA GIGACHAD)
     # =========================================================================
     def _apply_mewing_effect(self, img_bgr, lms, face_data, w, h):
         """
-        Aplica deformación geométrica local (Mesh Warping) en tiempo real:
-        - Hunde las mejillas (Hollow Cheeks)
-        - Esculpe y afina la mandíbula en V pronunciada (Sharp Mogger Jawline)
-        - Alarga y marca el mentón (Gigachad Chin)
-        - Frunce sutilmente los labios (Mewing Pout)
+        Deformación facial idéntica al filtro viral de TikTok / Instagram:
+        1. Ceja izquierda arqueada e hiper-elevada hacia arriba estilo The Rock / Chad.
+        2. Ceja y ojo derechos entrecerrados (squint / hunter eyes).
+        3. Hundimiento profundo de mejillas (Hollow Cheeks / Buccal pinch).
+        4. Ángulos mandibulares anchos hacia afuera (Gonial Jaw Flare).
+        5. Mentón largo, ancho y esculpido (Gigachad Chin).
+        6. Sombreado de contorno en mejillas para crear profundidad 3D y arruga en la frente.
+        7. Fruncimiento de labios estilo Mewing Smirk.
         """
+        if lms is None:
+            return img_bgr.copy()
+
         face_w = abs(lms[454].x - lms[234].x) * w
-        
-        # Crear mapas de coordenadas para deformación bilineal
-        map_x = np.tile(np.arange(w, dtype=np.float32), (h, 1))
-        map_y = np.tile(np.arange(h, dtype=np.float32)[:, np.newaxis], (1, w))
-        
-        # 1. Hundimiento de mejillas (Hollow Cheeks hacia el centro)
-        r_cheek = face_w * 0.36
-        str_cheek = face_w * 0.14
-        
-        cx_l, cy_l = lms[116].x * w, lms[116].y * h
-        warp_local(map_x, map_y, cx_l, cy_l, str_cheek, -str_cheek * 0.15, r_cheek)
-        
-        cx_r, cy_r = lms[345].x * w, lms[345].y * h
-        warp_local(map_x, map_y, cx_r, cy_r, -str_cheek, -str_cheek * 0.15, r_cheek)
-        
-        # 2. Afinado y elevación de los ángulos mandibulares
-        r_jaw = face_w * 0.32
-        str_jaw = face_w * 0.12
-        warp_local(map_x, map_y, lms[172].x * w, lms[172].y * h, str_jaw, -str_jaw * 0.12, r_jaw)
-        warp_local(map_x, map_y, lms[397].x * w, lms[397].y * h, -str_jaw, -str_jaw * 0.12, r_jaw)
-        
-        # Puntos medios de mandíbula
-        warp_local(map_x, map_y, lms[136].x * w, lms[136].y * h, str_jaw * 0.8, -str_jaw * 0.1, r_jaw * 0.8)
-        warp_local(map_x, map_y, lms[365].x * w, lms[365].y * h, -str_jaw * 0.8, -str_jaw * 0.1, r_jaw * 0.8)
-        
-        # 3. Mentón prominente hacia abajo (Chiseled Chin)
-        r_chin = face_w * 0.28
-        str_chin = face_w * 0.09
-        warp_local(map_x, map_y, lms[152].x * w, lms[152].y * h, 0, str_chin, r_chin)
-        
-        # 4. Labios mewing / fruncidos hacia el centro
-        r_mouth = face_w * 0.18
-        str_mouth = face_w * 0.05
-        warp_local(map_x, map_y, lms[61].x * w, lms[61].y * h, str_mouth, 0, r_mouth)
-        warp_local(map_x, map_y, lms[291].x * w, lms[291].y * h, -str_mouth, 0, r_mouth)
-        
-        # Remapeo bilineal suave
-        warped = cv2.remap(img_bgr, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-        
-        # Realce de sombras en las mejillas para acentuar el look "hollow"
-        contrast_boost = cv2.convertScaleAbs(warped, alpha=1.06, beta=4)
-        
-        # Marcador estético Mewing
+        face_h = abs(lms[152].y - lms[10].y) * h
+        if face_w < 10 or face_h < 10:
+            return img_bgr.copy()
+
+        src_pts = []
+        dst_pts = []
+
+        # 1. ANCLAJES PERIMETRALES (Fondo y bordes fijos sin distorsión)
+        for bx in np.linspace(0, w - 1, 8):
+            for by in np.linspace(0, h - 1, 8):
+                dist = np.hypot(bx - lms[6].x * w, by - lms[6].y * h)
+                if dist > max(face_w, face_h) * 0.85:
+                    src_pts.append([bx, by])
+                    dst_pts.append([bx, by])
+
+        # 2. ANCLAJES SUPERIORES DEL CRÁNEO / NACIMIENTO DEL CABELLO
+        top_y = lms[10].y * h
+        for idx in [10, 338, 297, 332, 109, 67, 103]:
+            px, py = lms[idx].x * w, lms[idx].y * h
+            src_pts.append([px, py])
+            dst_pts.append([px, py])
+
+        # 3. ANCLAJES DEL PUENTE NASAL
+        for idx in [168, 6, 197, 195, 5, 4]:
+            px, py = lms[idx].x * w, lms[idx].y * h
+            src_pts.append([px, py])
+            dst_pts.append([px, py])
+
+        # Espacio disponible en la frente para elevar la ceja
+        eyebrow_y = lms[105].y * h
+        headroom = max(15, eyebrow_y - top_y)
+        brow_lift = min(face_h * 0.30, headroom * 0.80)
+
+        # 4. LA MÍTICA CEJA LEVANTADA ESTILO THE ROCK (Espectador Izquierda)
+        brow_moves = {
+            105: (0, -brow_lift),                          # Pico central arqueado arriba
+            66: (0, -brow_lift * 0.90),                   # Parte media-interna
+            63: (0, -brow_lift * 0.80),                   # Parte media-externa
+            107: (face_w * 0.02, -brow_lift * 0.40),       # Extremo interno fruncido
+            70: (-face_w * 0.02, -brow_lift * 0.25),      # Cola externa inclinada
+            52: (0, -brow_lift * 0.85),                   # Borde inferior de ceja
+            53: (0, -brow_lift * 0.75),
+            65: (0, -brow_lift * 0.85),
+            159: (0, -brow_lift * 0.20),                  # Párpado abierto de sorpresa
+        }
+
+        # 5. OJO Y CEJA ENTRECERRADOS / HUNTER EYE (Espectador Derecha)
+        hunter_moves = {
+            334: (0, face_h * 0.04),                      # Ceja aplanada y baja
+            296: (0, face_h * 0.05),
+            293: (0, face_h * 0.03),
+            386: (0, face_h * 0.05),                      # Párpado superior cerrado
+            374: (0, -face_h * 0.03),                     # Párpado inferior tenso
+        }
+
+        # 6. MEJILLAS PROFUNDAMENTE HUNDIDAS (HOLLOW CHEEKS)
+        pinch = face_w * 0.18
+        cheek_moves = {
+            116: (pinch, -face_h * 0.02),                 # Mejilla izquierda hacia el centro
+            205: (pinch * 1.1, 0),
+            147: (pinch * 0.8, face_h * 0.02),
+            345: (-pinch, -face_h * 0.02),                # Mejilla derecha hacia el centro
+            425: (-pinch * 1.1, 0),
+            376: (-pinch * 0.8, face_h * 0.02),
+        }
+
+        # 7. PÓMULOS ALTOS Y ESCULPIDOS
+        bone_moves = {
+            123: (-face_w * 0.06, -face_h * 0.02),
+            352: (face_w * 0.06, -face_h * 0.02),
+        }
+
+        # 8. MANDÍBULA AFILADA Y MENTÓN GIGACHAD
+        chin_drop = min(face_h * 0.22, max(10, (h - lms[152].y * h) * 0.6))
+        jaw_moves = {
+            172: (-face_w * 0.09, -face_h * 0.02),        # Ángulo gonial izquierdo afuera
+            397: (face_w * 0.09, -face_h * 0.02),         # Ángulo gonial derecho afuera
+            152: (0, chin_drop),                          # Mentón hacia abajo
+            175: (0, chin_drop * 0.90),
+            199: (0, chin_drop * 0.80),
+            148: (-face_w * 0.04, chin_drop * 0.80),      # Mentón ancho / cuadrado
+            377: (face_w * 0.04, chin_drop * 0.80),
+        }
+
+        # 9. LABIOS FRUNCIDOS ESTILO MEWING POUT / SMIRK
+        mouth_moves = {
+            61: (face_w * 0.02, -face_h * 0.02),
+            291: (-face_w * 0.02, -face_h * 0.02),
+            0: (0, -face_h * 0.02),
+            17: (0, -face_h * 0.03),
+        }
+
+        all_moves = {**brow_moves, **hunter_moves, **cheek_moves, **bone_moves, **jaw_moves, **mouth_moves}
+        for idx, (dx, dy) in all_moves.items():
+            px, py = lms[idx].x * w, lms[idx].y * h
+            src_pts.append([px, py])
+            dst_pts.append([px + dx, py + dy])
+
+        src_arr = np.array([src_pts], dtype=np.float32)
+        dst_arr = np.array([dst_pts], dtype=np.float32)
+        matches = [cv2.DMatch(i, i, 0) for i in range(len(src_pts))]
+
+        tps = cv2.createThinPlateSplineShapeTransformer()
+        tps.estimateTransformation(src_arr, dst_arr, matches)
+        warped = tps.warpImage(img_bgr)
+
+        # 10. SOMBREADO DE CONTORNO EN LAS MEJILLAS Y ARRUGA EN LA FRENTE
+        shadow_mask = np.zeros((h, w), dtype=np.float32)
+        c_pt1_l = (int(lms[123].x * w), int(lms[123].y * h + face_h * 0.05))
+        c_pt2_l = (int(lms[61].x * w - face_w * 0.03), int(lms[61].y * h))
+        cv2.line(shadow_mask, c_pt1_l, c_pt2_l, 0.70, int(face_w * 0.16))
+
+        c_pt1_r = (int(lms[352].x * w), int(lms[352].y * h + face_h * 0.05))
+        c_pt2_r = (int(lms[291].x * w + face_w * 0.03), int(lms[291].y * h))
+        cv2.line(shadow_mask, c_pt1_r, c_pt2_r, 0.70, int(face_w * 0.16))
+
+        # Arruga vertical de la frente por levantar la ceja
+        f1 = (int(lms[107].x * w + face_w * 0.02), int(lms[107].y * h - brow_lift * 0.2))
+        f2 = (int(lms[107].x * w + face_w * 0.02), int(lms[107].y * h - brow_lift * 0.8))
+        cv2.line(shadow_mask, f1, f2, 0.55, max(2, int(face_w * 0.025)))
+
+        blur_k = max(21, (int(face_w * 0.16) // 2) * 2 + 1)
+        shadow_blurred = cv2.GaussianBlur(shadow_mask, (blur_k, blur_k), 0)
+        shadow_factor = 1.0 - (shadow_blurred[:, :, np.newaxis] * 0.65)
+
+        # Iluminaciones en pómulos y mentón esculpido
+        highlight_mask = np.zeros((h, w), dtype=np.float32)
+        cv2.circle(highlight_mask, (int(lms[123].x * w), int(lms[123].y * h)), int(face_w * 0.07), 0.35, -1)
+        cv2.circle(highlight_mask, (int(lms[352].x * w), int(lms[352].y * h)), int(face_w * 0.07), 0.35, -1)
+        cv2.circle(highlight_mask, (int(lms[152].x * w), int(lms[152].y * h + chin_drop * 0.5)), int(face_w * 0.09), 0.35, -1)
+        hl_blur = cv2.GaussianBlur(highlight_mask, (blur_k, blur_k), 0)
+
+        result = warped.astype(np.float32) * shadow_factor + (hl_blur[:, :, np.newaxis] * 40.0)
+        result = np.clip(result, 0, 255).astype(np.uint8)
+
+        # Banner discreto de telemetría del filtro
         font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = max(0.38, min(w, h) / 1600.0)
-        
-        # Barra superior estética
-        cv2.rectangle(contrast_boost, (10, 10), (min(w - 10, 320), 42), (18, 14, 28), -1)
-        cv2.rectangle(contrast_boost, (10, 10), (min(w - 10, 320), 42), (255, 100, 220), 1)
-        cv2.putText(contrast_boost, "🗿 MEWING / LOOKSMAXXING ACTIVE", (18, 32), font, scale, (255, 180, 240), 1, cv2.LINE_AA)
-        
-        # Línea de mandíbula estilizada en la barbilla
-        chin_pt = (int(lms[152].x * w), int(lms[152].y * h + str_chin))
-        cv2.putText(contrast_boost, "JAWLINE: CHISELED 100%", (15, h - 15), font, scale * 0.9, (255, 200, 255), 1, cv2.LINE_AA)
-        return contrast_boost
+        scale = max(0.34, min(w, h) / 1600.0)
+        cv2.putText(result, "MEWING FILTER // THE ROCK EYEBROW // GIGACHAD JAW", (15, h - 15), font, scale, (245, 114, 182), 1, cv2.LINE_AA)
+        return result
 
     # =========================================================================
-    # NUEVO FILTRO: RGB CHROMA GLITCH SPLIT
+    # FILTRO RGB CHROMA GLITCH SPLIT
     # =========================================================================
     def _apply_rgb_split_effect(self, img_bgr):
-        """
-        Aplica un efecto cromático RGB Split / Anaglifo 3D / Cyberpunk Glitch:
-        - Desfasa el canal Rojo hacia un lado y el Azul hacia el opuesto
-        - Añade micro-scanlines y viñeta RGB
-        """
         h, w, _ = img_bgr.shape
         offset = max(5, int(w * 0.016))
         
         b, g, r = cv2.split(img_bgr)
         
-        # Desplazar canal Rojo a la derecha
         r_shifted = np.zeros_like(r)
         r_shifted[:, offset:] = r[:, :-offset]
         r_shifted[:, :offset] = r[:, 0:1]
         
-        # Desplazar canal Azul a la izquierda
         b_shifted = np.zeros_like(b)
         b_shifted[:, :-offset] = b[:, offset:]
         b_shifted[:, -offset:] = b[:, -1:]
         
         rgb_merged = cv2.merge([b_shifted, g, r_shifted])
-        
-        # Scanlines horizontales cromáticas sutiles
         rgb_merged[::4, :] = (rgb_merged[::4, :].astype(np.float32) * 0.88).astype(np.uint8)
         
         font = cv2.FONT_HERSHEY_SIMPLEX
         scale = max(0.38, min(w, h) / 1600.0)
         
-        # Banner estilo RGB Glitch
         cv2.putText(rgb_merged, "RGB CHROMA SPLIT // 3D ANAGLYPH", (16, 28), font, scale, (0, 0, 255), 1, cv2.LINE_AA)
         cv2.putText(rgb_merged, "RGB CHROMA SPLIT // 3D ANAGLYPH", (14, 26), font, scale, (255, 255, 0), 1, cv2.LINE_AA)
         cv2.putText(rgb_merged, "RGB CHROMA SPLIT // 3D ANAGLYPH", (15, 27), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
-        
         cv2.putText(rgb_merged, "CHANNEL DISPLACEMENT: ACTIVE", (15, h - 15), font, scale * 0.85, (255, 200, 100), 1, cv2.LINE_AA)
         return rgb_merged
 
@@ -542,7 +622,7 @@ class FaceAnalyzer:
             bx = sig_x + i * 6
             cv2.line(img, (bx, sig_y), (bx, sig_y - h_bar), c_green, 2)
             
-        sub_txt = "BIO-IDENT PROTOCOL: v2.6 // TARGET ACQUIRED"
+        sub_txt = "BIO-IDENT PROTOCOL: v2.7 // TARGET ACQUIRED"
         cv2.putText(img, sub_txt, (pad + cut + 15, h - pad - 10), font, scale, (180, 220, 190), 1, cv2.LINE_AA)
 
     def _draw_hud_face_target(self, img, lms, w, h, bbox, gender_info, skin_info, eye_info, face_crop, idx):
