@@ -8,32 +8,6 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.vision import FaceLandmarksConnections
 
-def warp_local(map_x, map_y, px, py, dx, dy, radius):
-    """Aplica una deformación radial suave centrada en (px, py) con desplazamiento (dx, dy)"""
-    h, w = map_x.shape
-    x1 = max(0, int(px - radius))
-    x2 = min(w, int(px + radius + 1))
-    y1 = max(0, int(py - radius))
-    y2 = min(h, int(py + radius + 1))
-    
-    if x1 >= x2 or y1 >= y2:
-        return
-        
-    sub_x = map_x[y1:y2, x1:x2]
-    sub_y = map_y[y1:y2, x1:x2]
-    
-    dx_grid = sub_x - px
-    dy_grid = sub_y - py
-    d2 = dx_grid * dx_grid + dy_grid * dy_grid
-    r2 = radius * radius
-    
-    mask = d2 < r2
-    factor = np.zeros_like(d2)
-    factor[mask] = (1.0 - d2[mask] / r2) ** 2
-    
-    map_x[y1:y2, x1:x2] -= dx * factor
-    map_y[y1:y2, x1:x2] -= dy * factor
-
 class FaceAnalyzer:
     def __init__(self, models_dir="models"):
         self.models_dir = models_dir
@@ -65,7 +39,6 @@ class FaceAnalyzer:
         """
         Analiza la imagen y aplica el filtro visual seleccionado:
         - "NONE": Sin ningún filtro (Foto original limpia al 100%)
-        - "MEWING": Filtro viral Mewing / Chad (ceja levantada estilo The Rock, mandíbula afilada, mejillas hundidas)
         - "RGB": Desfase cromático RGB Glitch / Split anaglifo 3D
         - "SNIPER": Mira de Rifle de Francotirador Roja (mil-dot reticle)
         - "NIGHT_VISION": Visión Nocturna Militar NVG (Green Phosphor)
@@ -150,9 +123,6 @@ class FaceAnalyzer:
         if filter_mode == "NONE":
             # Foto original limpia sin añadidos
             annotated_img = img_bgr.copy()
-        elif filter_mode == "MEWING":
-            # Filtro viral idéntico a la referencia (Ceja levantada The Rock + Mandíbula Gigachad)
-            annotated_img = self._apply_mewing_effect(img_bgr, main_lms, main_face, w, h)
         elif filter_mode == "RGB":
             # Filtro RGB Chromatic Glitch Split
             annotated_img = self._apply_rgb_split_effect(img_bgr)
@@ -184,165 +154,6 @@ class FaceAnalyzer:
                 )
 
         return annotated_img, faces_results
-
-    # =========================================================================
-    # FILTRO VIRAL MEWING / CHAD (CEJA THE ROCK + MANDÍBULA GIGACHAD)
-    # =========================================================================
-    def _apply_mewing_effect(self, img_bgr, lms, face_data, w, h):
-        """
-        Deformación facial idéntica al filtro viral de TikTok / Instagram:
-        1. Ceja izquierda arqueada e hiper-elevada hacia arriba estilo The Rock / Chad.
-        2. Ceja y ojo derechos entrecerrados (squint / hunter eyes).
-        3. Hundimiento profundo de mejillas (Hollow Cheeks / Buccal pinch).
-        4. Ángulos mandibulares anchos hacia afuera (Gonial Jaw Flare).
-        5. Mentón largo, ancho y esculpido (Gigachad Chin).
-        6. Sombreado de contorno en mejillas para crear profundidad 3D y arruga en la frente.
-        7. Fruncimiento de labios estilo Mewing Smirk.
-        """
-        if lms is None:
-            return img_bgr.copy()
-
-        face_w = abs(lms[454].x - lms[234].x) * w
-        face_h = abs(lms[152].y - lms[10].y) * h
-        if face_w < 10 or face_h < 10:
-            return img_bgr.copy()
-
-        src_pts = []
-        dst_pts = []
-
-        # 1. ANCLAJES PERIMETRALES (Fondo y bordes fijos sin distorsión)
-        for bx in np.linspace(0, w - 1, 8):
-            for by in np.linspace(0, h - 1, 8):
-                dist = np.hypot(bx - lms[6].x * w, by - lms[6].y * h)
-                if dist > max(face_w, face_h) * 0.85:
-                    src_pts.append([bx, by])
-                    dst_pts.append([bx, by])
-
-        # 2. ANCLAJES SUPERIORES DEL CRÁNEO / NACIMIENTO DEL CABELLO
-        top_y = lms[10].y * h
-        for idx in [10, 338, 297, 332, 109, 67, 103]:
-            px, py = lms[idx].x * w, lms[idx].y * h
-            src_pts.append([px, py])
-            dst_pts.append([px, py])
-
-        # 3. ANCLAJES DEL PUENTE NASAL
-        for idx in [168, 6, 197, 195, 5, 4]:
-            px, py = lms[idx].x * w, lms[idx].y * h
-            src_pts.append([px, py])
-            dst_pts.append([px, py])
-
-        # Espacio disponible en la frente para elevar la ceja
-        eyebrow_y = lms[105].y * h
-        headroom = max(15, eyebrow_y - top_y)
-        brow_lift = min(face_h * 0.30, headroom * 0.80)
-
-        # 4. LA MÍTICA CEJA LEVANTADA ESTILO THE ROCK (Espectador Izquierda)
-        brow_moves = {
-            105: (0, -brow_lift),                          # Pico central arqueado arriba
-            66: (0, -brow_lift * 0.90),                   # Parte media-interna
-            63: (0, -brow_lift * 0.80),                   # Parte media-externa
-            107: (face_w * 0.02, -brow_lift * 0.40),       # Extremo interno fruncido
-            70: (-face_w * 0.02, -brow_lift * 0.25),      # Cola externa inclinada
-            52: (0, -brow_lift * 0.85),                   # Borde inferior de ceja
-            53: (0, -brow_lift * 0.75),
-            65: (0, -brow_lift * 0.85),
-            159: (0, -brow_lift * 0.20),                  # Párpado abierto de sorpresa
-        }
-
-        # 5. OJO Y CEJA ENTRECERRADOS / HUNTER EYE (Espectador Derecha)
-        hunter_moves = {
-            334: (0, face_h * 0.04),                      # Ceja aplanada y baja
-            296: (0, face_h * 0.05),
-            293: (0, face_h * 0.03),
-            386: (0, face_h * 0.05),                      # Párpado superior cerrado
-            374: (0, -face_h * 0.03),                     # Párpado inferior tenso
-        }
-
-        # 6. MEJILLAS PROFUNDAMENTE HUNDIDAS (HOLLOW CHEEKS)
-        pinch = face_w * 0.18
-        cheek_moves = {
-            116: (pinch, -face_h * 0.02),                 # Mejilla izquierda hacia el centro
-            205: (pinch * 1.1, 0),
-            147: (pinch * 0.8, face_h * 0.02),
-            345: (-pinch, -face_h * 0.02),                # Mejilla derecha hacia el centro
-            425: (-pinch * 1.1, 0),
-            376: (-pinch * 0.8, face_h * 0.02),
-        }
-
-        # 7. PÓMULOS ALTOS Y ESCULPIDOS
-        bone_moves = {
-            123: (-face_w * 0.06, -face_h * 0.02),
-            352: (face_w * 0.06, -face_h * 0.02),
-        }
-
-        # 8. MANDÍBULA AFILADA Y MENTÓN GIGACHAD
-        chin_drop = min(face_h * 0.22, max(10, (h - lms[152].y * h) * 0.6))
-        jaw_moves = {
-            172: (-face_w * 0.09, -face_h * 0.02),        # Ángulo gonial izquierdo afuera
-            397: (face_w * 0.09, -face_h * 0.02),         # Ángulo gonial derecho afuera
-            152: (0, chin_drop),                          # Mentón hacia abajo
-            175: (0, chin_drop * 0.90),
-            199: (0, chin_drop * 0.80),
-            148: (-face_w * 0.04, chin_drop * 0.80),      # Mentón ancho / cuadrado
-            377: (face_w * 0.04, chin_drop * 0.80),
-        }
-
-        # 9. LABIOS FRUNCIDOS ESTILO MEWING POUT / SMIRK
-        mouth_moves = {
-            61: (face_w * 0.02, -face_h * 0.02),
-            291: (-face_w * 0.02, -face_h * 0.02),
-            0: (0, -face_h * 0.02),
-            17: (0, -face_h * 0.03),
-        }
-
-        all_moves = {**brow_moves, **hunter_moves, **cheek_moves, **bone_moves, **jaw_moves, **mouth_moves}
-        for idx, (dx, dy) in all_moves.items():
-            px, py = lms[idx].x * w, lms[idx].y * h
-            src_pts.append([px, py])
-            dst_pts.append([px + dx, py + dy])
-
-        src_arr = np.array([src_pts], dtype=np.float32)
-        dst_arr = np.array([dst_pts], dtype=np.float32)
-        matches = [cv2.DMatch(i, i, 0) for i in range(len(src_pts))]
-
-        tps = cv2.createThinPlateSplineShapeTransformer()
-        tps.estimateTransformation(src_arr, dst_arr, matches)
-        warped = tps.warpImage(img_bgr)
-
-        # 10. SOMBREADO DE CONTORNO EN LAS MEJILLAS Y ARRUGA EN LA FRENTE
-        shadow_mask = np.zeros((h, w), dtype=np.float32)
-        c_pt1_l = (int(lms[123].x * w), int(lms[123].y * h + face_h * 0.05))
-        c_pt2_l = (int(lms[61].x * w - face_w * 0.03), int(lms[61].y * h))
-        cv2.line(shadow_mask, c_pt1_l, c_pt2_l, 0.70, int(face_w * 0.16))
-
-        c_pt1_r = (int(lms[352].x * w), int(lms[352].y * h + face_h * 0.05))
-        c_pt2_r = (int(lms[291].x * w + face_w * 0.03), int(lms[291].y * h))
-        cv2.line(shadow_mask, c_pt1_r, c_pt2_r, 0.70, int(face_w * 0.16))
-
-        # Arruga vertical de la frente por levantar la ceja
-        f1 = (int(lms[107].x * w + face_w * 0.02), int(lms[107].y * h - brow_lift * 0.2))
-        f2 = (int(lms[107].x * w + face_w * 0.02), int(lms[107].y * h - brow_lift * 0.8))
-        cv2.line(shadow_mask, f1, f2, 0.55, max(2, int(face_w * 0.025)))
-
-        blur_k = max(21, (int(face_w * 0.16) // 2) * 2 + 1)
-        shadow_blurred = cv2.GaussianBlur(shadow_mask, (blur_k, blur_k), 0)
-        shadow_factor = 1.0 - (shadow_blurred[:, :, np.newaxis] * 0.65)
-
-        # Iluminaciones en pómulos y mentón esculpido
-        highlight_mask = np.zeros((h, w), dtype=np.float32)
-        cv2.circle(highlight_mask, (int(lms[123].x * w), int(lms[123].y * h)), int(face_w * 0.07), 0.35, -1)
-        cv2.circle(highlight_mask, (int(lms[352].x * w), int(lms[352].y * h)), int(face_w * 0.07), 0.35, -1)
-        cv2.circle(highlight_mask, (int(lms[152].x * w), int(lms[152].y * h + chin_drop * 0.5)), int(face_w * 0.09), 0.35, -1)
-        hl_blur = cv2.GaussianBlur(highlight_mask, (blur_k, blur_k), 0)
-
-        result = warped.astype(np.float32) * shadow_factor + (hl_blur[:, :, np.newaxis] * 40.0)
-        result = np.clip(result, 0, 255).astype(np.uint8)
-
-        # Banner discreto de telemetría del filtro
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = max(0.34, min(w, h) / 1600.0)
-        cv2.putText(result, "MEWING FILTER // THE ROCK EYEBROW // GIGACHAD JAW", (15, h - 15), font, scale, (245, 114, 182), 1, cv2.LINE_AA)
-        return result
 
     # =========================================================================
     # FILTRO RGB CHROMA GLITCH SPLIT

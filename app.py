@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 
-# Importar el motor de análisis facial con suite completa de filtros (Mewing, RGB, Quitar Filtro, etc.)
+# Importar el motor de análisis facial con suite de filtros (RGB, Mira de Rifle, Quitar Filtro, etc.)
 from face_engine import FaceAnalyzer
 
 def natural_sort_key(s):
@@ -41,7 +41,7 @@ class AppReconocimientoFacial:
         self.tk_img_ref = None
         
         # Modo de filtro óptico activo:
-        # "NONE", "MEWING", "RGB", "SNIPER", "NIGHT_VISION", "THERMAL", "TERMINATOR", "FACE_MESH", "CCTV", "HUD"
+        # "NONE", "RGB", "SNIPER", "NIGHT_VISION", "THERMAL", "TERMINATOR", "FACE_MESH", "CCTV", "HUD"
         self.current_filter_mode = "HUD"
         
         # Escaneo de imágenes del dataset del usuario
@@ -92,7 +92,6 @@ class AppReconocimientoFacial:
         self.c_text_muted = "#64748B"   # Gris técnico
         self.c_amber = "#F59E0B"        # Naranja de advertencia
         self.c_crimson = "#EF4444"      # Rojo
-        self.c_pink = "#EC4899"         # Rosa Mewing
         
         self.root.configure(bg=self.c_bg_root)
         
@@ -223,7 +222,7 @@ class AppReconocimientoFacial:
         )
         btn_rand.pack(side="left", padx=3)
 
-        # C) APARTADO DE FILTROS (Mewing, RGB, Quitar Filtro, etc.)
+        # C) APARTADO DE FILTROS (RGB, Quitar Filtro, Mira de Rifle, etc.)
         filter_section = tk.Frame(left_card, bg="#101722", bd=1, relief="solid", highlightthickness=1)
         filter_section.configure(highlightbackground=self.c_border_neon)
         filter_section.pack(side="bottom", fill="x", padx=10, pady=(4, 3), ipady=4, ipadx=4)
@@ -239,7 +238,6 @@ class AppReconocimientoFacial:
         
         self.filter_options = [
             ("🚫 [QUITAR FILTRO] Foto Original Limpia", "NONE"),
-            ("🗿 Filtro Mewing (Mandíbula & Pómulos)", "MEWING"),
             ("🌈 Filtro RGB (Desfase Cromático Glitch)", "RGB"),
             ("🎯 Mira de Rifle (Sniper Red Scope)", "SNIPER"),
             ("🟢 Visión Nocturna NVG (Green Phosphor)", "NIGHT_VISION"),
@@ -256,7 +254,7 @@ class AppReconocimientoFacial:
             state="readonly", width=34
         )
         # Iniciar con HUD
-        self.cmb_filters.current(9)
+        self.cmb_filters.current(8)
         self.cmb_filters.pack(side="left", padx=4)
         self.cmb_filters.bind("<<ComboboxSelected>>", self._on_filter_combobox_selected)
         
@@ -275,7 +273,6 @@ class AppReconocimientoFacial:
         
         buttons_spec = [
             ("🚫 ORIGINAL", "NONE", "#27272A", "#E4E4E7"),
-            ("🗿 MEWING", "MEWING", "#3B112C", "#F472B6"),
             ("🌈 RGB GLITCH", "RGB", "#1A2542", "#67E8F9"),
             ("🎯 RIFLE", "SNIPER", "#450A0A", "#F87171"),
             ("🟢 NVG", "NIGHT_VISION", "#0F2E1B", "#4ADE80"),
